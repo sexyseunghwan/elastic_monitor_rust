@@ -2,8 +2,8 @@ use crate::common::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ClusterJson {
-    pub name: String,
+    pub cluster_name: String,
     pub hosts: Vec<String>,
-    pub username: String,
-    pub password: String,
+    pub es_id: String,
+    pub es_pw: String,
 }

@@ -25,6 +25,7 @@ pub use elasticsearch::{
 pub use elasticsearch::http::transport::TransportBuilder;
 pub use elasticsearch::http::Url;
 pub use elasticsearch::{SearchParts, IndexParts, DeleteParts};
+pub use elasticsearch::cat::CatIndicesParts;
 
 
 pub use anyhow::{Result, anyhow, Context};

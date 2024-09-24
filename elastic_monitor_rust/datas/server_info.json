@@ -1,20 +1,12 @@
 {
     "clusters": [
       {
-        "name": "Test-cluster",
+        "cluster_name": "Test-cluster",
         "hosts": [
-          "192.168.8.77"
+          "192.168.8.77:9200"
         ],
-        "username": "elastic",
-        "password": "156452"
-      },
-      {
-        "name": "Test-cluster2",
-        "hosts": [
-          "192.168.8.80"
-        ],
-        "username": "trest",
-        "password": "123"
+        "es_id": "elastic",
+        "es_pw": "156452"
       }
     ]
 }
