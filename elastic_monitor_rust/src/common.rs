@@ -38,4 +38,4 @@ pub use futures::future::join_all;
 
 pub use lazy_static::lazy_static;
 
-
+pub use async_trait::async_trait;

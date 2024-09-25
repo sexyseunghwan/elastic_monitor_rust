@@ -5,9 +5,9 @@ use crate::utils_modules::io_utils::*;
 use crate::model::ClusterConfig::*;
 
 // 전역 Telebot 인스턴스를 선언
-lazy_static! {
-    static ref TELE_BOT: Arc<RwLock<Option<Telebot>>> = Arc::new(RwLock::new(None));
-}
+// lazy_static! {
+//     static ref TELE_BOT: Arc<RwLock<Option<Telebot>>> = Arc::new(RwLock::new(None));
+// }
 
 
 

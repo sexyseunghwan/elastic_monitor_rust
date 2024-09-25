@@ -9,6 +9,8 @@ mod service;
 
 mod model;
 
+mod repository;
+
 mod utils_modules;
 use crate::utils_modules::logger_utils::*;
 

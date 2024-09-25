@@ -64,7 +64,7 @@ use crate::model::Indicies::*;
 */
 pub async fn get_cluster_node_check(cluster: &EsHelper) -> Result<(), anyhow::Error> {
     
-    let conn_stats = cluster.cluster_get_ping_query().await;
+    let conn_stats = cluster.get_cluster_conn_check().await;
     
     
 
@@ -77,7 +77,7 @@ pub async fn get_cluster_node_check(cluster: &EsHelper) -> Result<(), anyhow::Er
 pub async fn get_cluster_health_check(cluster: &EsHelper) -> Result<String, anyhow::Error> {
     
     // 클러스터 상태 체크
-    let cluster_status_json = cluster.cluster_get_health_query().await?;
+    let cluster_status_json = cluster.get_cluster_health().await?;
     
     let cluster_status = cluster_status_json.get("status")
         .and_then(Value::as_str)
@@ -92,7 +92,7 @@ pub async fn get_cluster_health_check(cluster: &EsHelper) -> Result<String, anyh
 */
 pub async fn get_cluster_unstable_index_infos(cluster: &EsHelper) -> Result<Vec<Indicies>, anyhow::Error> {
 
-    let cluster_stat_resp = cluster.cluster_cat_indices_query().await?;
+    let cluster_stat_resp = cluster.get_cluster_indices().await?;
     let unstable_indicies = cluster_stat_resp.trim().lines();
 
     // 인덱스 상태 확인 및 벡터 생성

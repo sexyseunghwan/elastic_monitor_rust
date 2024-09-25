@@ -1,81 +1,13 @@
-// use crate::common::*;
-
-
-// #[derive(Clone, Serialize, Deserialize, Debug)]
-// pub struct Telebot {
-//     pub bot_token: String,
-//     pub chat_room_id: String,
-// }
-
-// impl Telebot {
-    
-//     /*
-            
-//     */
-//     pub async fn bot_send(&self, send_msg: &str) -> Result<(), anyhow::Error> {
-        
-//         let mut try_cnt = 0;
-        
-//         while try_cnt < 3 {
-
-//             let url: String = format!(
-//                 "https://api.telegram.org/bot{}/sendMessage",
-//                 self.bot_token
-//             );
-
-//             let body: Value = serde_json::json!({
-//                 "chat_id": self.chat_room_id,
-//                 "text": send_msg
-//             });
-
-//             let client: reqwest::Client = reqwest::Client::new();
-//             let res = client.post(&url)
-//                 .header("Content-Type", "application/json")
-//                 .body(body.to_string())
-//                 .send()
-//                 .await;
-
-//             match res {
-//                 Ok(res) => {                    
-//                     if !res.status().is_success() {
-//                         let err_text = res.text().await.unwrap_or_else(|_| "Failed to get error message".to_string());
-//                         error!("[Timeout Error][bot_send()] Failed to send message: {}. http communication retry begins after 40 seconds.", err_text);
-//                         try_cnt += 1;
-//                         thread::sleep(Duration::from_secs(40));
-//                     } else {
-//                         info!("Success send message");
-//                         break;
-//                     }
-//                 },
-//                 Err(err) => {
-//                     error!("[Timeout Error][bot_send()] HTTP request failed: {}. http communication retry begins after 40 seconds.", err);
-//                     try_cnt += 1;
-//                     thread::sleep(Duration::from_secs(40));
-//                 }
-//             }
-//         }
-
-//         if try_cnt == 3 {
-//             return Err(anyhow!("The system attempted to communicate with the telegram bot more than 3 times, but failed.".to_string()));
-//         }
-        
-//         Ok(())
-//     }
-
-
-// }
-
 use crate::common::*;
 
+use crate::model::TeleBot::*;
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct Telebot {
-    pub bot_token: String,
-    pub chat_room_id: String,
+// TelebotService는 비즈니스 로직을 담당하는 서비스 레이어로 분리
+pub struct TelebotService {
+    pub telebot: Telebot,
 }
 
 impl Telebot {
-    
     
     // Telegram bot 이 메시지를 보내주는 기능 -> 3번 실패 시 에러발생
     pub async fn bot_send(&self, send_msg: &str) -> Result<(), anyhow::Error> {

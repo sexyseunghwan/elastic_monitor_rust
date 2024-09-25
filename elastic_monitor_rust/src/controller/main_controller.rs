@@ -5,8 +5,8 @@ use crate::utils_modules::io_utils::*;
 
 use crate::service::es_service::*;
 use crate::service::metric_service::*;
-use crate::service::tele_bot_service::*;
 
+use crate::model::TeleBot::*;
 use crate::model::Indicies::*;
 
 pub async fn main_controller() {

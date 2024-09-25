@@ -1,19 +1,12 @@
 use crate::common::*;
 
-use crate::model::Indicies::*;
+use crate::repository::es_repository::*;
 
 #[derive(Debug, Getters, Clone)]
 #[getset(get = "pub")]
 pub struct EsHelper {
     cluster_name: String,
     mon_es_pool: Vec<EsObj>
-}
-
-#[derive(Debug, Getters, Clone, new)]
-#[getset(get = "pub")]
-pub struct EsObj {
-    es_host: String,
-    es_pool: Elasticsearch
 }
 
 impl EsHelper {
@@ -45,11 +38,11 @@ impl EsHelper {
     /*
         Cluster 내에 존재하는 인덱스들의 정보를 쿼리함.
     */
-    pub async fn cluster_cat_indices_query(&self) -> Result<String, anyhow::Error> {
+    pub async fn get_cluster_indices(&self) -> Result<String, anyhow::Error> {
     
         for es_obj in self.mon_es_pool.iter() {
 
-            match es_obj.node_cat_indices_query().await {
+            match es_obj.get_indices_info().await {
                 Ok(resp) => return Ok(resp),
                 Err(err) => {
                     error!("{:?}", err);      
@@ -65,11 +58,11 @@ impl EsHelper {
     /*
         Cluster 의 health 체크  
     */
-    pub async fn cluster_get_health_query(&self) -> Result<Value, anyhow::Error> {
+    pub async fn get_cluster_health(&self) -> Result<Value, anyhow::Error> {
         
         for es_obj in self.mon_es_pool.iter() {
 
-            match es_obj.node_get_health_query().await {
+            match es_obj.get_health_info().await {
                 Ok(resp) => return Ok(resp),
                 Err(err) => {
                     error!("{:?}", err);      
@@ -84,7 +77,7 @@ impl EsHelper {
     /*
         Cluster 내 각 node 들에 connection 검증
     */
-    pub async fn cluster_get_ping_query(&self) -> Vec<(String, bool)> {
+    pub async fn get_cluster_conn_check(&self) -> Vec<(String, bool)> {
         
         let futures = self.mon_es_pool.iter().map(|es_obj| {
             
@@ -109,56 +102,5 @@ impl EsHelper {
 
     }
 
-    
-}
-
-
-impl EsObj {
-
-    
-    /*
-        Cluster 내에 존재하는 인덱스들의 정보를 쿼리함.
-    */
-    pub async fn node_cat_indices_query(&self) -> Result<String, anyhow::Error> {
-
-        let response = self.es_pool
-            .cat()
-            .indices(CatIndicesParts::None)
-            .h(&["health", "status", "index"])
-            .send()
-            .await?;
-
-        if response.status_code().is_success() {
-            let response_body: String = response.text().await?;
-            Ok(response_body)
-        } else {
-            let error_message = format!("[Elasticsearch Error][node_cat_indices_query()] Failed to GET document: Status Code: {}", response.status_code());
-            Err(anyhow!(error_message))
-        } 
-    }
-    
-    
-    /*
-        Cluster 의 health 체크  
-    */
-    pub async fn node_get_health_query(&self) -> Result<Value, anyhow::Error> {
-
-        // _cluster/health 요청
-        let response = self.es_pool
-            .cluster()
-            .health(ClusterHealthParts::None)  
-            .send()
-            .await?;
-        
-        if response.status_code().is_success() {
-            
-            let resp: Value = response.json().await?;
-            Ok(resp)
-
-        } else {
-            let error_message = format!("[Elasticsearch Error][node_get_health_query()] Failed to GET document: Status Code: {}", response.status_code());
-            Err(anyhow!(error_message))
-        }
-    }
     
 }
