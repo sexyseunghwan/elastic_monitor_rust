@@ -10,18 +10,22 @@ pub struct EsHelper {
 }
 
 impl EsHelper {
-
+    
     /* 
         EsHelper의 생성자 -> Elasticsearch cluster connection 정보객체를 생성해줌.
     */
     pub fn new(cluster_name: &str, hosts: Vec<String>, es_id: &str, es_pw: &str) -> Result<Self, anyhow::Error> {
         
         let mut mon_es_clients: Vec<EsObj> = Vec::new();
-    
+        
         for url in hosts {
-    
-            let parse_url = format!("http://{}:{}@{}", es_id, es_pw, url);
-
+                
+            let parse_url = if es_id.is_empty() || es_pw.is_empty() {
+                format!("http://{}", url)
+            } else {
+                format!("http://{}:{}@{}", es_id, es_pw, url)
+            };
+            
             let es_url = Url::parse(&parse_url)?;
             let conn_pool = SingleNodeConnectionPool::new(es_url);
             let transport = TransportBuilder::new(conn_pool)
@@ -53,7 +57,7 @@ impl EsHelper {
         
         Err(anyhow!("[Elasticsearch Error][cluster_cat_indices_query()] All Elasticsearch connections failed"))
     }
-
+    
     
     /*
         Cluster 의 health 체크  
@@ -73,7 +77,8 @@ impl EsHelper {
         
         Err(anyhow!("[Elasticsearch Error][cluster_get_helth_query()] All Elasticsearch connections failed"))
     }
-
+    
+    
     /*
         Cluster 내 각 node 들에 connection 검증
     */
@@ -99,8 +104,6 @@ impl EsHelper {
 
         // 모든 노드의 ping 결과를 병렬로 처리.
         join_all(futures).await
-
     }
-
     
 }

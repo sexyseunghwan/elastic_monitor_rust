@@ -3,24 +3,17 @@ use crate::service::es_service::*;
 use crate::utils_modules::io_utils::*;
 
 use crate::model::ClusterConfig::*;
-
-// 전역 Telebot 인스턴스를 선언
-// lazy_static! {
-//     static ref TELE_BOT: Arc<RwLock<Option<Telebot>>> = Arc::new(RwLock::new(None));
-// }
+use crate::model::TeleBot::*;
 
 
-
-/*
-    Elasticsearch DB connection 정보를 반환하는 함수
+/* 
+    Elasticsearch DB 초기화
 */
-pub async fn initialize_db_clients() -> Result<Vec<EsHelper>, anyhow::Error> {
-    
-    let file_path: &str = "./datas/server_info.json";
-    
-    let mut elastic_conn_vec: Vec<EsHelper> = Vec::new();
+pub fn initialize_db_clients(es_info_path: &str) -> Result<Vec<EsHelper>, anyhow::Error> {
 
-    let cluster_config: ClusterConfig = read_json_from_file::<ClusterConfig>(file_path)?;
+    let mut elastic_conn_vec: Vec<EsHelper> = Vec::new();
+    
+    let cluster_config: ClusterConfig = read_json_from_file::<ClusterConfig>(es_info_path)?;
     
     for config in &cluster_config.clusters {
         
@@ -35,4 +28,23 @@ pub async fn initialize_db_clients() -> Result<Vec<EsHelper>, anyhow::Error> {
     }
     
     Ok(elastic_conn_vec)
+
+}
+
+
+/*
+    Telebot 을 전역적으로 초기화 함.
+*/
+pub fn initialize_tele_bot_client(tele_info_path: &str) -> Result<(), anyhow::Error> {
+
+    let tele_bot: Telebot = read_json_from_file::<Telebot>(tele_info_path)?;
+    
+    let mut telebot_guard = match TELE_BOT.write() {
+        Ok(telebot_guard) => telebot_guard,
+        Err(e) => return Err(anyhow!("[RWLock Error][bot_send()] Failed to read 'TELE_BOT' data. : {:?}",e))
+    };
+
+    *telebot_guard = Some(tele_bot);
+    
+    Ok(())
 }
