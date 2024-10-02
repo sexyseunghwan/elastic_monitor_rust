@@ -1,24 +1,22 @@
-mod common;
-use controller::main_controller::main_controller;
+/*
+Author      : Seunghwan Shin 
+Create date : 2024-10-02 
+Description : Elasticsearch 클러스터의 문제를 탐색하고 telegram 을 통해 문제를 전달해주는 서비스
+    
+History     : 2023-10-02 Seunghwan Shin       # first create
+*/ 
 
-use crate::common::*;
+mod common;
 
 mod controller;
-
-mod service;
-
-mod model;
-
-mod repository;
+use controller::main_controller::main_controller;
 
 mod utils_modules;
-use crate::utils_modules::logger_utils::*;
+
+mod service;
+mod model;
+mod repository;
+
 
 #[tokio::main]
-async fn main() {
-    
-    set_global_logger();
-
-    main_controller().await;
-    
-}
+async fn main() { main_controller().await; }

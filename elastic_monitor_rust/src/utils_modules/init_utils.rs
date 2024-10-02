@@ -1,29 +1,29 @@
 use crate::common::*;
-use crate::service::es_service::*;
+
 use crate::utils_modules::io_utils::*;
 
 use crate::model::ClusterConfig::*;
 use crate::model::TeleBot::*;
 
+use crate::repository::es_repository::*;
 
 /* 
     Elasticsearch DB 초기화
 */
-pub fn initialize_db_clients(es_info_path: &str) -> Result<Vec<EsHelper>, anyhow::Error> {
+pub fn initialize_db_clients(es_info_path: &str) -> Result<Vec<EsRepositoryPub>, anyhow::Error> {
 
-    let mut elastic_conn_vec: Vec<EsHelper> = Vec::new();
+    let mut elastic_conn_vec: Vec<EsRepositoryPub> = Vec::new();
     
     let cluster_config: ClusterConfig = read_json_from_file::<ClusterConfig>(es_info_path)?;
     
     for config in &cluster_config.clusters {
         
-        let es_helper = EsHelper::new(
+        let es_helper = EsRepositoryPub::new(
             &config.cluster_name,
-            config.hosts.clone(),
-            &config.es_id,
-            &config.es_pw,
-        )?;
-
+            config.hosts.clone(), 
+            &config.es_id, 
+            &config.es_pw)?;
+        
         elastic_conn_vec.push(es_helper);
     }
     

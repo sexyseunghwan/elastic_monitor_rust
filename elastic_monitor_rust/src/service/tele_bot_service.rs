@@ -7,7 +7,7 @@ use crate::model::TeleBot::*;
 pub struct TelebotService;
 
 impl TelebotService {
-    
+        
     fn tele_init(&self) -> Result<Telebot, anyhow::Error> {
         
          // 전역 TELE_BOT 상태를 안전하게 읽기 (match를 사용하여 처리)
