@@ -183,34 +183,32 @@ impl MetricService {
             .get_pendging_tasks()
             .await?;
 
-        if let Some(tasks) = pending_task["tasks"].as_array() {
-            
-            let tasks_size = tasks.len();
+        // tasks 필드가 배열로 존재하는지 확인
+        let tasks = match pending_task["tasks"].as_array() {
+            Some(tasks) if !tasks.is_empty() => tasks,
+            _ => return Ok(()),  // tasks가 없거나, 빈 배열이면 작업 종료
+        };
 
-            /* 
-                pending task 가 존재하는 경우
-            */
-            if tasks_size > 0 {
-
-                let mut err_detail = String::from("");
-
-                for task in tasks {
-                    err_detail += &format!("{}\n", task.to_string());
-                }
-                
-                let msg_fmt = MessageFormatter::new(
-                    self.elastic_obj.cluster_name().to_string(), 
-                    String::from(""), 
-                    String::from("Elasticsearch Index health condition issue"), 
-                    String::from(err_detail));
-                
-                let send_msg = msg_fmt.transfer_msg();
-                self.tele_service.bot_send(send_msg.as_str()).await?;   
-                
-                info!("{:?}", msg_fmt);
-            }
-        }
+        // 모든 pending task를 문자열로 변환하여 한 번에 처리
+        let task_details = tasks
+            .iter()
+            .map(|task| task.to_string())
+            .collect::<Vec<String>>()
+            .join("\n");
         
+        // 메세지 포맷 생성
+        let msg_fmt = MessageFormatter::new(
+            self.elastic_obj.cluster_name().to_string(), 
+            String::new(),  // 빈 문자열
+            "Elasticsearch pending task issue".to_string(),
+            task_details
+        );
+        
+        // 메세지 전송
+        let send_msg = msg_fmt.transfer_msg();
+        self.tele_service.bot_send(send_msg.as_str()).await?;  
+        
+        info!("{:?}", msg_fmt);
 
         Ok(())
     }

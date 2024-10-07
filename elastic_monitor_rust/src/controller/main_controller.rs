@@ -18,7 +18,7 @@ pub async fn main_controller() {
     loop {
                 
         // Elasticsearch DB 커넥션 정보
-        let es_infos_vec: Vec<EsRepositoryPub> = match initialize_db_clients("./datas/server_info.json") {
+        let es_infos_vec: Vec<EsRepositoryPub> = match initialize_db_clients("./datas/server_info_test.json") {
             Ok(es_infos_vec) => es_infos_vec,
             Err(e) => {
                 error!("{:?}", e);
