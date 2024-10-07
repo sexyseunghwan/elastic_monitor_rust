@@ -25,9 +25,44 @@ impl MetricService {
     }
     
     /*
+        Task 세트
+    */
+    pub async fn task_set(&self) -> Result<(), anyhow::Error> {
+
+        // 1. 클러스터의 각 노드의 연결 문제가 없는지 살핀다.
+        match self.get_cluster_node_check().await {  
+            Ok(flag) => {
+                if !flag { return Ok(()) }
+            },
+            Err(e) => {
+                error!("{:?}", e)
+            }
+        }
+        
+        // 2. 클러스터의 상태를 살핀다.
+        let health_flag = self.get_cluster_health_check().await?;
+        
+        if health_flag {
+            // 3. pending tasks 가 없는지 확인해준다.
+            let _pending_task_res = self.get_cluster_pending_tasks().await?;
+            
+        } else {
+            // 3. 클러스터의 상태가 Green이 아니라면 인덱스의 상태를 살핀다.
+            match self.get_cluster_unstable_index_infos().await {
+                Ok(_) => (),
+                Err(e) => {
+                    error!("{:?}", e)
+                }
+            }
+        }
+        
+        Ok(())
+    } 
+
+    /*
         Elasticsearch 클러스터 내의 각 노드의 상태를 체크해주는 함수
     */
-    pub async fn get_cluster_node_check(&self) -> Result<bool, anyhow::Error> {
+    async fn get_cluster_node_check(&self) -> Result<bool, anyhow::Error> {
         
         let conn_stats = self.elastic_obj.get_node_conn_check().await;
 
@@ -65,7 +100,7 @@ impl MetricService {
     /*
         Cluster 의 상태를 반환해주는 함수 -> green, yellow, red
     */
-    pub async fn get_cluster_health_check(&self) -> Result<bool, anyhow::Error> {
+    async fn get_cluster_health_check(&self) -> Result<bool, anyhow::Error> {
         
         // 클러스터 상태 체크
         let cluster_status_json: Value = self.elastic_obj.get_health_info().await?;
@@ -85,9 +120,8 @@ impl MetricService {
             let send_msg = msg_fmt.transfer_msg();
             self.tele_service.bot_send(send_msg.as_str()).await?;   
             
-            //info!("{} cluster health status is {}", cluster.cluster_name(), send_msg);
             info!("{} cluster health status is {:?}", self.elastic_obj.cluster_name(), msg_fmt);
-
+            
             return Ok(false)
         }
         
@@ -98,7 +132,7 @@ impl MetricService {
     /*
         불안정한 인덱스들을 추출하는 함수
     */
-    pub async fn get_cluster_unstable_index_infos(&self) -> Result<(), anyhow::Error> {
+    async fn get_cluster_unstable_index_infos(&self) -> Result<(), anyhow::Error> {
 
         let cluster_stat_resp = self.elastic_obj.get_indices_info().await?;
         let unstable_indicies = cluster_stat_resp.trim().lines();
@@ -134,6 +168,22 @@ impl MetricService {
         
         info!("{:?}", msg_fmt);
         
+        Ok(())
+    }
+
+
+    /*
+        중단된 작업 리스트를 확인해주는 함수
+    */
+    async fn get_cluster_pending_tasks(&self) -> Result<(), anyhow::Error> {
+
+        let pending_task = self.elastic_obj
+            .get_pendging_tasks()
+            .await?;
+
+        
+        println!("{:?}", pending_task);
+
         Ok(())
     }
 

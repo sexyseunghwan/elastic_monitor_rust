@@ -4,6 +4,7 @@ use crate::common::*;
 pub trait EsRepository {
     async fn get_indices_info(&self) -> Result<String, anyhow::Error>;
     async fn get_health_info(&self) -> Result<Value, anyhow::Error>;
+    async fn get_pendging_tasks(&self) -> Result<Value, anyhow::Error>;
     async fn get_node_conn_check(&self) -> Vec<(String, bool)>;
 }
 
@@ -143,7 +144,39 @@ impl EsRepository for EsRepositoryPub {
         }    
 
     }
-    
+
+
+    /*
+        Elasticsearch 의 pending task(중단작업) 가 있는지 확인해주는 함수
+    */
+    async fn get_pendging_tasks(&self) -> Result<Value, anyhow::Error> {
+
+        let response = self.execute_on_any_node(|es_client| async move { 
+
+            // _cluster/pending_tasks 요청
+            let response = es_client
+                .es_conn
+                .cluster()
+                .pending_tasks()  
+                .send()
+                .await?;
+
+            Ok(response)
+        })
+        .await?;
+        
+        if response.status_code().is_success() {
+            
+            let resp: Value = response.json().await?;
+            Ok(resp)
+
+        } else {
+            let error_message = format!("[Elasticsearch Error][get_pendging_tasks()] Failed to GET document: Status Code: {}", response.status_code());
+            Err(anyhow!(error_message))
+        }  
+        
+    }
+
     
     /*
         Elasticsearch 각 노드들이 현재 문제 없이 통신이 되는지 체크해주는 함수.

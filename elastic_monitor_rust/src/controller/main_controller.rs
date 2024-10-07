@@ -7,42 +7,6 @@ use crate::service::metric_service::*;
 
 use crate::repository::es_repository::*;
 
-/* 작업 SET */
-async fn task_set(metirc_service: MetricService) -> Result<(), anyhow::Error> {
-    
-    
-    // 1. 클러스터의 각 노드의 연결 문제가 없는지 살핀다.
-    match metirc_service.get_cluster_node_check().await {  
-        Ok(flag) => {
-            if !flag { return Ok(()) }
-        },
-        Err(e) => {
-            error!("{:?}", e)
-        }
-    }
-    
-    
-    // 2. 클러스터의 상태를 살핀다.
-    match metirc_service.get_cluster_health_check().await {
-        Ok(flag) => {
-            if flag { return Ok(()) }
-        },
-        Err(e) => {
-            error!("{:?}", e)
-        }
-    }
-    
-    // 3. 클러스터의 상태가 Green이 아니라면 인덱스의 상태를 살핀다.
-    match metirc_service.get_cluster_unstable_index_infos().await {
-        Ok(_) => (),
-        Err(e) => {
-            error!("{:?}", e)
-        }
-    }
-
-    Ok(())
-
-}
 
 pub async fn main_controller() {
 
@@ -80,15 +44,24 @@ pub async fn main_controller() {
         
         
         let futures = services.iter().map(|service| {
-            
-            let service: MetricService = service.clone();
-
             async move {                
-                task_set(service).await
+                service.task_set().await
             }
         });
         
-        join_all(futures).await;
+        let results = join_all(futures).await;
+
+        for result in results {
+            match result {
+                Ok(_) => {
+                    info!("Template processed successfully");
+                }
+                Err(e) => {
+                    error!("Error processing template: {:?}", e);
+                }
+            }
+        }
+        
 
         break;        
         //thread::sleep(Duration::from_secs(60)); //60초 마다 탐색 -> 무한루프가 돌고 있으므로.
