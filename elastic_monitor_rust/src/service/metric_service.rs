@@ -1,3 +1,5 @@
+use core::task;
+
 use crate::common::*;
 
 use crate::model::MessageFormatter::MessageFormatter;
@@ -181,8 +183,34 @@ impl MetricService {
             .get_pendging_tasks()
             .await?;
 
+        if let Some(tasks) = pending_task["tasks"].as_array() {
+            
+            let tasks_size = tasks.len();
+
+            /* 
+                pending task 가 존재하는 경우
+            */
+            if tasks_size > 0 {
+
+                let mut err_detail = String::from("");
+
+                for task in tasks {
+                    err_detail += &format!("{}\n", task.to_string());
+                }
+                
+                let msg_fmt = MessageFormatter::new(
+                    self.elastic_obj.cluster_name().to_string(), 
+                    String::from(""), 
+                    String::from("Elasticsearch Index health condition issue"), 
+                    String::from(err_detail));
+                
+                let send_msg = msg_fmt.transfer_msg();
+                self.tele_service.bot_send(send_msg.as_str()).await?;   
+                
+                info!("{:?}", msg_fmt);
+            }
+        }
         
-        println!("{:?}", pending_task);
 
         Ok(())
     }
