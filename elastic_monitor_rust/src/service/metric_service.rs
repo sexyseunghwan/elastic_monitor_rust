@@ -87,24 +87,6 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
             .to_uppercase();
         
         Ok(cluster_status)
-        // if cluster_status != "GREEN" {
-
-        //     // let msg_fmt = MessageFormatter::new(
-        //     //     self.elastic_obj.get_cluster_name(), 
-        //     //     self.elastic_obj.get_cluster_all_host_infos(), 
-        //     //     String::from(format!("Elasticsearch Cluster health is [{}]", cluster_status)), 
-        //     //     String::from(format!("The current cluster health status is {}", cluster_status)));
-            
-        //     // let send_msg = msg_fmt.transfer_msg();
-        //     // let tele_service = get_telegram_service();
-        //     // tele_service.bot_send(send_msg.as_str()).await?;   
-            
-        //     // info!("{} cluster health status is {:?}", self.elastic_obj.get_cluster_name(), msg_fmt);
-            
-        //     return Ok((false, cluster_status))
-        // }
-        
-        // Ok((true, String::from("GREEN")))
     }
 
     
