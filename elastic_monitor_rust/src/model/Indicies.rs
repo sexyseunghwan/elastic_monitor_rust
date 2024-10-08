@@ -12,7 +12,7 @@ impl Indicies {
     pub fn get_indicies(&self) -> String {
 
         let format = format!(
-            "[{}] index cluster is {}, open status is {}\n",
+            "[{}] index status is {}, open status is {}\n",
             self.index, self.health, self.status
         );
         
