@@ -1,4 +1,30 @@
 use crate::common::*;
+use crate::model::ClusterConfig::*;
+use crate::utils_modules::io_utils::*;
+
+/* 
+    Elasticsearch DB 초기화
+*/
+pub fn initialize_db_clients(es_info_path: &str) -> Result<Vec<EsRepositoryPub>, anyhow::Error> {
+
+    let mut elastic_conn_vec: Vec<EsRepositoryPub> = Vec::new();
+    
+    let cluster_config: ClusterConfig = read_json_from_file::<ClusterConfig>(es_info_path)?;
+    
+    for config in &cluster_config.clusters {
+        
+        let es_helper = EsRepositoryPub::new(
+            &config.cluster_name,
+            config.hosts.clone(), 
+            &config.es_id, 
+            &config.es_pw)?;
+        
+        elastic_conn_vec.push(es_helper);
+    }
+    
+    Ok(elastic_conn_vec)
+}
+
 
 #[async_trait]
 pub trait EsRepository {
@@ -6,6 +32,8 @@ pub trait EsRepository {
     async fn get_health_info(&self) -> Result<Value, anyhow::Error>;
     async fn get_pendging_tasks(&self) -> Result<Value, anyhow::Error>;
     async fn get_node_conn_check(&self) -> Vec<(String, bool)>;
+    fn get_cluster_name(&self) -> String;
+    fn get_cluster_all_host_infos(&self) -> String;
 }
 
 #[derive(Debug, Getters, Clone)]
@@ -86,6 +114,22 @@ impl EsRepositoryPub {
 impl EsRepository for EsRepositoryPub {
     
     /*
+        Cluster 내의 모든 호스트들을 반환해주는 함수.
+    */
+    fn get_cluster_all_host_infos(&self) -> String {
+
+        let mut hosts: String = String::from("");
+
+        self.es_clients
+            .iter() 
+            .for_each(|es_client| {
+                hosts.push_str(&format!("{}\n", es_client.host));
+            });
+
+        hosts
+    }
+
+    /*
         Elasticsearch 클러스터 내부에 존재하는 인덱스들의 정보를 가져오는 함수
     */
     async fn get_indices_info(&self) -> Result<String, anyhow::Error> {
@@ -145,7 +189,7 @@ impl EsRepository for EsRepositoryPub {
 
     }
 
-
+    
     /*
         Elasticsearch 의 pending task(중단작업) 가 있는지 확인해주는 함수
     */
@@ -203,5 +247,12 @@ impl EsRepository for EsRepositoryPub {
         
         join_all(futures).await
     }
-
+    
+    /*
+        Elasticsearch 클러스터의 이름을 가져와주는 함수.
+    */
+    fn get_cluster_name(&self) -> String {
+        self.cluster_name().to_string()
+    }
+    
 }

@@ -1,5 +1,3 @@
-use core::task;
-
 use crate::common::*;
 
 use crate::model::MessageFormatter::MessageFormatter;
@@ -9,58 +7,33 @@ use crate::service::tele_bot_service::*;
 
 use crate::repository::es_repository::*;
 
-#[derive(Clone, Debug)]
-pub struct MetricService {
-    tele_service: TelebotService,
-    elastic_obj: EsRepositoryPub
+#[async_trait]
+pub trait MetricService {
+    async fn get_cluster_node_check(&self) -> Result<bool, anyhow::Error>;
+    async fn get_cluster_health_check(&self) -> Result<String, anyhow::Error>;
+    async fn get_cluster_unstable_index_infos(&self, cluster_status: &str) -> Result<(), anyhow::Error>;
+    async fn get_cluster_pending_tasks(&self) -> Result<(), anyhow::Error>;
 }
 
 
-impl MetricService {
+#[derive(Clone, Debug)]
+pub struct MetricServicePub<R: EsRepository> {
+    elastic_obj: R
+}
 
-    pub fn new(elastic_obj: EsRepositoryPub) -> Self {
-        
-        let tele_service = TelebotService::new();
-        let metric_service = MetricService{tele_service, elastic_obj};
-
-        metric_service
-    }
+impl<R: EsRepository> MetricServicePub<R> {
     
-    /*
-        Task 세트
-    */
-    pub async fn task_set(&self) -> Result<(), anyhow::Error> {
-
-        // 1. 클러스터의 각 노드의 연결 문제가 없는지 살핀다.
-        match self.get_cluster_node_check().await {  
-            Ok(flag) => {
-                if !flag { return Ok(()) }
-            },
-            Err(e) => {
-                error!("{:?}", e)
-            }
-        }
+    pub fn new(elastic_obj: R) -> Self {
         
-        // 2. 클러스터의 상태를 살핀다.
-        let health_flag = self.get_cluster_health_check().await?;
-        
-        if health_flag {
-            // 3. pending tasks 가 없는지 확인해준다.
-            let _pending_task_res = self.get_cluster_pending_tasks().await?;
-            
-        } else {
-            // 3. 클러스터의 상태가 Green이 아니라면 인덱스의 상태를 살핀다.
-            match self.get_cluster_unstable_index_infos().await {
-                Ok(_) => (),
-                Err(e) => {
-                    error!("{:?}", e)
-                }
-            }
-        }
-        
-        Ok(())
+        let metric_service = MetricServicePub{elastic_obj};
+        metric_service
     } 
+}
 
+
+#[async_trait]
+impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
+    
     /*
         Elasticsearch 클러스터 내의 각 노드의 상태를 체크해주는 함수
     */
@@ -82,13 +55,14 @@ impl MetricService {
         if !conn_fail_hosts.is_empty() {
             
             let msg_fmt = MessageFormatter::new(
-                self.elastic_obj.cluster_name().to_string(), 
+                self.elastic_obj.get_cluster_name(), 
                 conn_fail_hosts.join("\n"), 
                 String::from("Elasticsearch Connection Failed"), 
                 String::from("The connection of these hosts has been LOST."));
             
             let send_msg = msg_fmt.transfer_msg();
-            self.tele_service.bot_send(send_msg.as_str()).await?;   
+            let tele_service = get_telegram_service();
+            tele_service.bot_send(send_msg.as_str()).await?;   
             
             info!("{:?}", msg_fmt);
 
@@ -97,44 +71,47 @@ impl MetricService {
         
         Ok(true)
     }
-
+    
 
     /*
         Cluster 의 상태를 반환해주는 함수 -> green, yellow, red
     */
-    async fn get_cluster_health_check(&self) -> Result<bool, anyhow::Error> {
+    async fn get_cluster_health_check(&self) -> Result<String, anyhow::Error> {
         
         // 클러스터 상태 체크
         let cluster_status_json: Value = self.elastic_obj.get_health_info().await?;
         
         let cluster_status = cluster_status_json.get("status")
             .and_then(Value::as_str)
-            .ok_or_else(|| anyhow!("[Value Error][get_cluster_state()] 'status' field is missing in cluster_status_json"))?;
+            .ok_or_else(|| anyhow!("[Value Error][get_cluster_state()] 'status' field is missing in cluster_status_json"))?
+            .to_uppercase();
         
-        if cluster_status != "green" {
+        Ok(cluster_status)
+        // if cluster_status != "GREEN" {
 
-            let msg_fmt = MessageFormatter::new(
-                self.elastic_obj.cluster_name().to_string(), 
-                String::from(""), 
-                String::from("Elasticsearch Cluster health condition issue"), 
-                String::from(format!("The current cluster health status is {}", cluster_status)));
+        //     // let msg_fmt = MessageFormatter::new(
+        //     //     self.elastic_obj.get_cluster_name(), 
+        //     //     self.elastic_obj.get_cluster_all_host_infos(), 
+        //     //     String::from(format!("Elasticsearch Cluster health is [{}]", cluster_status)), 
+        //     //     String::from(format!("The current cluster health status is {}", cluster_status)));
             
-            let send_msg = msg_fmt.transfer_msg();
-            self.tele_service.bot_send(send_msg.as_str()).await?;   
+        //     // let send_msg = msg_fmt.transfer_msg();
+        //     // let tele_service = get_telegram_service();
+        //     // tele_service.bot_send(send_msg.as_str()).await?;   
             
-            info!("{} cluster health status is {:?}", self.elastic_obj.cluster_name(), msg_fmt);
+        //     // info!("{} cluster health status is {:?}", self.elastic_obj.get_cluster_name(), msg_fmt);
             
-            return Ok(false)
-        }
+        //     return Ok((false, cluster_status))
+        // }
         
-        Ok(true)
+        // Ok((true, String::from("GREEN")))
     }
 
-
+    
     /*
         불안정한 인덱스들을 추출하는 함수
     */
-    async fn get_cluster_unstable_index_infos(&self) -> Result<(), anyhow::Error> {
+    async fn get_cluster_unstable_index_infos(&self, cluster_status: &str) -> Result<(), anyhow::Error> {
 
         let cluster_stat_resp = self.elastic_obj.get_indices_info().await?;
         let unstable_indicies = cluster_stat_resp.trim().lines();
@@ -147,7 +124,7 @@ impl MetricService {
             
             match stats.as_slice() {
                 [health, status, index, ..] if *health != "green" || *status != "open" => {
-                    indicies_vec.push(Indicies::new(health.to_string(), status.to_string(), index.to_string()));
+                    indicies_vec.push(Indicies::new(health.to_string().to_uppercase(), status.to_string().to_uppercase(), index.to_string()));
                 }
                 [..] => continue, // 상태가 안정적인 경우는 무시
             }
@@ -160,20 +137,21 @@ impl MetricService {
         }
         
         let msg_fmt = MessageFormatter::new(
-            self.elastic_obj.cluster_name().to_string(), 
-            String::from(""), 
-            String::from("Elasticsearch Index health condition issue"), 
+            self.elastic_obj.get_cluster_name(), 
+            self.elastic_obj.get_cluster_all_host_infos(), 
+            String::from(format!("Elasticsearch Cluster health is [{}]", cluster_status)),
             String::from(err_detail));
         
         let send_msg = msg_fmt.transfer_msg();
-        self.tele_service.bot_send(send_msg.as_str()).await?;   
+        let tele_service = get_telegram_service();
+        tele_service.bot_send(send_msg.as_str()).await?;    
         
         info!("{:?}", msg_fmt);
         
         Ok(())
     }
 
-
+    
     /*
         중단된 작업 리스트를 확인해주는 함수
     */
@@ -198,7 +176,7 @@ impl MetricService {
         
         // 메세지 포맷 생성
         let msg_fmt = MessageFormatter::new(
-            self.elastic_obj.cluster_name().to_string(), 
+            self.elastic_obj.get_cluster_name(), 
             String::new(),  // 빈 문자열
             "Elasticsearch pending task issue".to_string(),
             task_details
@@ -206,11 +184,11 @@ impl MetricService {
         
         // 메세지 전송
         let send_msg = msg_fmt.transfer_msg();
-        self.tele_service.bot_send(send_msg.as_str()).await?;  
+        let tele_service = get_telegram_service();
+        tele_service.bot_send(send_msg.as_str()).await?;  
         
         info!("{:?}", msg_fmt);
 
         Ok(())
     }
-
-}
+} 

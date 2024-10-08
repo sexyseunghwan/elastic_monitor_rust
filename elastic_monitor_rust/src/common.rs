@@ -2,7 +2,7 @@ pub use std::{
     io::Write, 
     io::BufReader, 
     fs::File,
-    sync::{Arc, RwLock},
+    sync::Arc,
     future::Future
 };
 
@@ -42,8 +42,7 @@ pub use elasticsearch::{
 };
 
 pub use rand::{
-    rngs::StdRng, 
-    Rng, 
+    rngs::StdRng,  
     SeedableRng,
     seq::SliceRandom
 };
@@ -55,14 +54,7 @@ pub use derive_new::new;
 
 pub use futures::future::join_all;
 
-pub use lazy_static::lazy_static;
-
 pub use async_trait::async_trait;
 
+pub use once_cell::sync::Lazy;
 
-use crate::model::TeleBot::*;
-
-// 전역 Telebot 인스턴스를 선언
-lazy_static! {
-    pub static ref TELE_BOT: Arc<RwLock<Option<Telebot>>> = Arc::new(RwLock::new(None));
-}
