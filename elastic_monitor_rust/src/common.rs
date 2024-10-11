@@ -38,7 +38,10 @@ pub use elasticsearch::{
     http::Url,
     http::response::Response,
     cat::CatIndicesParts,
-    cluster::ClusterHealthParts
+    cluster::ClusterHealthParts,
+    nodes::NodesStatsParts,
+    IndexParts,
+    indices::IndicesDeleteParts
 };
 
 pub use rand::{
@@ -58,3 +61,9 @@ pub use async_trait::async_trait;
 
 pub use once_cell::sync::Lazy;
 
+pub use chrono::{
+    NaiveDate,
+    NaiveDateTime,
+    DateTime,
+    Utc
+};

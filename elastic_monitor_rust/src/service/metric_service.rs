@@ -1,7 +1,10 @@
 use crate::common::*;
 
+use crate::utils_modules::time_utils::*;
+
 use crate::model::MessageFormatter::MessageFormatter;
 use crate::model::Indicies::*;
+use crate::model::MetricInfo::*;
 
 use crate::service::tele_bot_service::*;
 
@@ -13,6 +16,8 @@ pub trait MetricService {
     async fn get_cluster_health_check(&self) -> Result<String, anyhow::Error>;
     async fn get_cluster_unstable_index_infos(&self, cluster_status: &str) -> Result<(), anyhow::Error>;
     async fn get_cluster_pending_tasks(&self) -> Result<(), anyhow::Error>;
+    async fn post_cluster_nodes_infos(&self) -> Result<(), anyhow::Error>;
+    async fn delete_cluster_index(&self) -> Result<(), anyhow::Error>;
 }
 
 
@@ -170,6 +175,73 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         tele_service.bot_send(send_msg.as_str()).await?;  
         
         info!("{:?}", msg_fmt);
+
+        Ok(())
+    }
+
+
+    /*
+        각 cluster node 들의 정보를 elasticsearch 에 적재하는 함수
+    */
+    async fn post_cluster_nodes_infos(&self) -> Result<(), anyhow::Error> {
+
+        let cluster_metrics: Value = self
+            .elastic_obj
+            .get_node_stats()
+            .await?;
+        
+
+        if let Some(nodes) = cluster_metrics["nodes"].as_object() { 
+
+            let cur_utc_time = get_current_utc_naivedate();
+
+            // 날짜 기준으로 인덱스 이름 맵핑
+            let index_name = format!("metric_info_{}", get_str_from_naivedate(cur_utc_time, "%Y%m%d"));
+                        
+            let mut metric_vec: Vec<MetricInfo> = Vec::new();
+
+            for (_node_id, node_info) in nodes {
+                
+                let host = node_info["host"].as_str().ok_or_else(|| anyhow!("test"))?;
+                let cpu_usage = node_info["os"]["cpu"]["percent"].as_i64().ok_or_else(|| anyhow!("test"))?;
+                let jvm_usage = node_info["jvm"]["mem"]["heap_used_percent"].as_i64().ok_or_else(|| anyhow!("test"))?;
+                
+                let disk_total = node_info["fs"]["total"]["total_in_bytes"].as_i64().ok_or_else(|| anyhow!("test"))?;
+                let disk_available = node_info["fs"]["total"]["available_in_bytes"].as_i64().ok_or_else(|| anyhow!("test"))?;
+                let disk_usage = ((disk_total - disk_available) as f64 / disk_total as f64) * 100.0;
+                
+                let metric_info = MetricInfo::new(host.to_string(), jvm_usage, cpu_usage, disk_usage.round() as i64);
+                metric_vec.push(metric_info);
+            }
+            
+            for metric in metric_vec {
+                let document: Value = serde_json::to_value(&metric)?;
+                self.elastic_obj.post_doc(&index_name, document).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    
+    /*
+        오늘 날짜 기준 5일전 인덱스는 모두 지워준다.
+    */
+    async fn delete_cluster_index(&self) -> Result<(), anyhow::Error> {
+
+        let cur_utc_time = get_current_utc_naivedate();
+
+        // 날짜가 5일이 지난 인덱스는 제거.
+        //let five_days_ago = cur_utc_time - chrono::Duration::days(5);
+        //let old_index_name = format!("metric_info_{}", get_str_from_naivedate(five_days_ago, "%Y%m%d"));
+        
+        let res = self.elastic_obj.get_index_belong_pattern("metric_info*").await?;
+
+        println!("{:?}", res);
+
+        // 인덱스 삭제
+        //self.elastic_obj.delete_index(&old_index_name).await?;
+        
 
         Ok(())
     }

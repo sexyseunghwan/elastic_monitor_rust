@@ -32,6 +32,11 @@ pub trait EsRepository {
     async fn get_health_info(&self) -> Result<Value, anyhow::Error>;
     async fn get_pendging_tasks(&self) -> Result<Value, anyhow::Error>;
     async fn get_node_conn_check(&self) -> Vec<(String, bool)>;
+    async fn get_node_stats(&self) -> Result<Value, anyhow::Error>;
+    async fn post_doc(&self, index_name: &str, document: Value) -> Result<(), anyhow::Error>;
+    async fn delete_index(&self, index_name: &str) -> Result<(), anyhow::Error>;
+    async fn get_index_belong_pattern(&self, index_pattern: &str) -> Result<Value, anyhow::Error>;
+
     fn get_cluster_name(&self) -> String;
     fn get_cluster_all_host_infos(&self) -> String;
 }
@@ -113,22 +118,6 @@ impl EsRepositoryPub {
 #[async_trait]
 impl EsRepository for EsRepositoryPub {
     
-    /*
-        Cluster 내의 모든 호스트들을 반환해주는 함수.
-    */
-    fn get_cluster_all_host_infos(&self) -> String {
-
-        let mut hosts: String = String::from("");
-
-        self.es_clients
-            .iter() 
-            .for_each(|es_client| {
-                hosts.push_str(&format!("{}\n", es_client.host));
-            });
-
-        hosts
-    }
-
     /*
         Elasticsearch 클러스터 내부에 존재하는 인덱스들의 정보를 가져오는 함수
     */
@@ -247,12 +236,153 @@ impl EsRepository for EsRepositoryPub {
         
         join_all(futures).await
     }
+
+    /*
+        클러스터 각 노드의 metric value 를 반환해주는 함수.    
+    */
+    async fn get_node_stats(&self) -> Result<Value, anyhow::Error> {
+        
+        let response = self.execute_on_any_node(|es_client| async move { 
+
+            // _nodes/stats 요청
+            let response = es_client
+                .es_conn
+                .nodes()
+                .stats(NodesStatsParts::None)  
+                .send()
+                .await?;
+
+            Ok(response)
+        })
+        .await?;
+        
+        if response.status_code().is_success() {
+            
+            let resp: Value = response.json().await?;
+            Ok(resp)
+
+        } else {
+            let error_message = format!("[Elasticsearch Error][get_node_stats()] Failed to GET document: Status Code: {}", response.status_code());
+            Err(anyhow!(error_message))
+        } 
+    }
     
+
+    /*
+        특정 인덱스에 데이터를 insert 해주는 함수.
+    */
+    async fn post_doc(&self, index_name: &str, document: Value) -> Result<(), anyhow::Error> {
+
+        // 클로저 내에서 사용할 복사본을 생성
+        let document_clone = document.clone();
+        
+        let response = self.execute_on_any_node(|es_client| {
+            // 클로저 내부에서 클론한 값 사용
+            let value = document_clone.clone(); 
+    
+            async move { 
+                let response = es_client
+                    .es_conn
+                    .index(IndexParts::Index(index_name))
+                    .body(value)
+                    .send()
+                    .await?;
+    
+                Ok(response)
+            }
+        })
+        .await?;
+        
+        if response.status_code().is_success() {
+            Ok(())
+        } else {
+            let error_message = format!("[Elasticsearch Error][post_doc()] Failed to index document: Status Code: {}", response.status_code());
+            Err(anyhow!(error_message))
+        }
+    }
+    
+
+
+    /*
+        특정 인덱스 자체를 삭제해주는 함수.
+    */
+    async fn delete_index(&self, index_name: &str) -> Result<(), anyhow::Error> {
+
+        let response = self.execute_on_any_node(|es_client| async move {
+    
+            let response = es_client
+                .es_conn
+                .indices()
+                .delete(IndicesDeleteParts::Index(&[index_name]))
+                .send()
+                .await?;
+            
+            Ok(response)
+        })
+        .await?;
+
+        if response.status_code().is_success() {
+            Ok(())
+        } else {
+            let error_message = format!("[Elasticsearch Error][node_delete_query()] Failed to delete document: Status Code: {}", response.status_code());
+            Err(anyhow!(error_message))
+        }
+    }
+
+    /*
+        특정 인덱스 패턴에 속하는 인덱스 전부를 가져와주는 함수.
+    */
+    async fn get_index_belong_pattern(&self, index_pattern: &str) -> Result<Value, anyhow::Error> {
+        
+        let response = self.execute_on_any_node(|es_client| async move {
+    
+            let response = es_client
+                .es_conn
+                .cat()
+                .indices(CatIndicesParts::Index(&[index_pattern]))
+                .format("json")
+                .send()
+                .await?;
+            
+            Ok(response)
+        })
+        .await?;
+        
+        if response.status_code().is_success() {
+            let response_body = response.json::<Value>().await?;
+            Ok(response_body)
+        } else {
+            let error_message = format!("[Elasticsearch Error][node_delete_query()] Failed to delete document: Status Code: {}", response.status_code());
+            Err(anyhow!(error_message))
+        }
+
+        
+
+    }
+
+
     /*
         Elasticsearch 클러스터의 이름을 가져와주는 함수.
     */
     fn get_cluster_name(&self) -> String {
         self.cluster_name().to_string()
+    }
+
+    
+    /*
+        Cluster 내의 모든 호스트들을 반환해주는 함수.
+    */
+    fn get_cluster_all_host_infos(&self) -> String {
+
+        let mut hosts: String = String::from("");
+
+        self.es_clients
+            .iter() 
+            .for_each(|es_client| {
+                hosts.push_str(&format!("{}\n", es_client.host));
+            });
+
+        hosts
     }
     
 }
