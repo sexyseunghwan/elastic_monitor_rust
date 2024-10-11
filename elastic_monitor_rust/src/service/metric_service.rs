@@ -230,18 +230,31 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
     async fn delete_cluster_index(&self) -> Result<(), anyhow::Error> {
 
         let cur_utc_time = get_current_utc_naivedate();
-
-        // 날짜가 5일이 지난 인덱스는 제거.
-        //let five_days_ago = cur_utc_time - chrono::Duration::days(5);
-        //let old_index_name = format!("metric_info_{}", get_str_from_naivedate(five_days_ago, "%Y%m%d"));
         
+        let mut delete_index_list: Vec<String> = Vec::new();
         let res = self.elastic_obj.get_index_belong_pattern("metric_info*").await?;
-
-        println!("{:?}", res);
-
-        // 인덱스 삭제
-        //self.elastic_obj.delete_index(&old_index_name).await?;
         
+        if let Some(index_obj) = res.as_array() {
+            
+            for index in index_obj {
+                let index_name = index["index"].as_str().ok_or_else(|| anyhow!("test"))?;
+                let word_split: Vec<&str> = index_name.split('_').collect();
+                let date = word_split.get(2).ok_or_else(|| anyhow!("test"))?;
+                
+                let parsed_date = NaiveDate::parse_from_str(date, "%Y%m%d")?;
+                let five_days_ago = cur_utc_time - chrono::Duration::days(5);
+
+                if parsed_date <= five_days_ago {
+                    delete_index_list.push(index_name.to_string());
+                }
+            }
+        }
+        
+        // 날짜가 5일이 지난 인덱스는 제거.
+        for delete_index in delete_index_list {
+            self.elastic_obj.delete_index(&delete_index).await?;
+            info!("{} index removed", delete_index);  
+        }                
 
         Ok(())
     }

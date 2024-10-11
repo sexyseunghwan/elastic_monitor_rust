@@ -43,18 +43,17 @@ async fn main() {
         }
     };
     
+    // Handler 의존주입
+    let mut handlers: Vec<MainHandler<MetricServicePub<EsRepositoryPub>>> = Vec::new();
+
+    for cluster in es_infos_vec {
+        let metirc_service = MetricServicePub::new(cluster);
+        let maind_handler = MainHandler::new(metirc_service);
+        handlers.push(maind_handler);
+    }
 
     loop {
 
-        // Handler 의존주입
-        let mut handlers: Vec<MainHandler<MetricServicePub<EsRepositoryPub>>> = Vec::new();
-        
-        for cluster in es_infos_vec {
-            let metirc_service = MetricServicePub::new(cluster);
-            let maind_handler = MainHandler::new(metirc_service);
-            handlers.push(maind_handler);
-        }
-        
         // Async 작업
         let futures = handlers.iter().map(|handler| {
             async move {                
@@ -75,8 +74,8 @@ async fn main() {
             }
         }
         
-        break;        
-        //thread::sleep(Duration::from_secs(60)); //60초 마다 탐색 -> 무한루프가 돌고 있으므로.
+        //break;        
+        std::thread::sleep(Duration::from_secs(10)); //60초 마다 탐색 -> 무한루프가 돌고 있으므로.
     }
 
 }
