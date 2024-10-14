@@ -88,7 +88,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         
         let cluster_status = cluster_status_json.get("status")
             .and_then(Value::as_str)
-            .ok_or_else(|| anyhow!("[Value Error][get_cluster_state()] 'status' field is missing in cluster_status_json"))?
+            .ok_or_else(|| anyhow!("[Parsing Error][get_cluster_state()] 'status' field is missing in cluster_status_json"))?
             .to_uppercase();
         
         Ok(cluster_status)
@@ -189,28 +189,32 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
             .elastic_obj
             .get_node_stats()
             .await?;
-        
 
         if let Some(nodes) = cluster_metrics["nodes"].as_object() { 
 
-            let cur_utc_time = get_current_utc_naivedate();
-
+            let cur_utc_time = get_currnet_utc_naivedatetime();
+            let cur_utc_time_str = get_str_from_naivedatetime(cur_utc_time, "%Y-%m-%dT%H:%M:%SZ")?;
+            
             // 날짜 기준으로 인덱스 이름 맵핑
-            let index_name = format!("metric_info_{}", get_str_from_naivedate(cur_utc_time, "%Y%m%d"));
-                        
+            let index_name = format!("metric_info_{}", get_str_from_naivedatetime(cur_utc_time, "%Y%m%d")?);
             let mut metric_vec: Vec<MetricInfo> = Vec::new();
-
+            
             for (_node_id, node_info) in nodes {
                 
-                let host = node_info["host"].as_str().ok_or_else(|| anyhow!("test"))?;
-                let cpu_usage = node_info["os"]["cpu"]["percent"].as_i64().ok_or_else(|| anyhow!("test"))?;
-                let jvm_usage = node_info["jvm"]["mem"]["heap_used_percent"].as_i64().ok_or_else(|| anyhow!("test"))?;
+                let host = node_info["host"].as_str()
+                    .ok_or_else(|| anyhow!("[Parsing Error][post_cluster_nodes_infos()] node_info['host'] variable not found."))?;
+                let cpu_usage = node_info["os"]["cpu"]["percent"].as_i64()
+                    .ok_or_else(|| anyhow!("[Parsing Error][post_cluster_nodes_infos()] node_info['os']['cpu']['percent'] variable not found."))?;
+                let jvm_usage = node_info["jvm"]["mem"]["heap_used_percent"].as_i64()
+                    .ok_or_else(|| anyhow!("[Parsing Error][post_cluster_nodes_infos()] node_info['jvm']['mem']['heap_used_percent'] variable not found."))?;
                 
-                let disk_total = node_info["fs"]["total"]["total_in_bytes"].as_i64().ok_or_else(|| anyhow!("test"))?;
-                let disk_available = node_info["fs"]["total"]["available_in_bytes"].as_i64().ok_or_else(|| anyhow!("test"))?;
+                let disk_total = node_info["fs"]["total"]["total_in_bytes"].as_i64()
+                    .ok_or_else(|| anyhow!("[Parsing Error][post_cluster_nodes_infos()] node_info['fs']['total']['total_in_bytes'] variable not found."))?;
+                let disk_available = node_info["fs"]["total"]["available_in_bytes"].as_i64()
+                    .ok_or_else(|| anyhow!("[Parsing Error][post_cluster_nodes_infos()] node_info['fs']['total']['available_in_bytes'] variable not found."))?;
                 let disk_usage = ((disk_total - disk_available) as f64 / disk_total as f64) * 100.0;
                 
-                let metric_info = MetricInfo::new(host.to_string(), jvm_usage, cpu_usage, disk_usage.round() as i64);
+                let metric_info = MetricInfo::new(cur_utc_time_str.clone(), host.to_string(), jvm_usage, cpu_usage, disk_usage.round() as i64);
                 metric_vec.push(metric_info);
             }
             
@@ -237,13 +241,17 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         if let Some(index_obj) = res.as_array() {
             
             for index in index_obj {
-                let index_name = index["index"].as_str().ok_or_else(|| anyhow!("test"))?;
-                let word_split: Vec<&str> = index_name.split('_').collect();
-                let date = word_split.get(2).ok_or_else(|| anyhow!("test"))?;
+                let index_name = index["index"].as_str()
+                    .ok_or_else(|| anyhow!("[Parsing Error][delete_cluster_index()] index['index'] variable not found."))?;
                 
-                let parsed_date = NaiveDate::parse_from_str(date, "%Y%m%d")?;
+                let word_split: Vec<&str> = index_name.split('_').collect();
+                let date = word_split.get(2)
+                    .ok_or_else(|| anyhow!("[Parsing Error][delete_cluster_index()] word_split.get(2) variable not found."))?;
+                
+                let parsed_date = NaiveDate::parse_from_str(date, "%Y%m%d")
+                    .map_err(|e| anyhow!("[Parsing Error][delete_cluster_index()] An error occurred while converting 'parsed_date' data. // date: {:?}, {:?}", date ,e))?;
                 let five_days_ago = cur_utc_time - chrono::Duration::days(5);
-
+                
                 if parsed_date <= five_days_ago {
                     delete_index_list.push(index_name.to_string());
                 }

@@ -1,9 +1,11 @@
 {
     "clusters": [
       {
-        "cluster_name": "Test-cluster",
+        "cluster_name": "Local-cluster",
         "hosts": [
-          "192.168.8.77:9200"
+          "221.149.34.65:2025",
+          "221.149.34.65:2026",
+          "221.149.34.65:2027"
         ],
         "es_id": "elastic",
         "es_pw": "156452"

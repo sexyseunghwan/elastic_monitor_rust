@@ -6,7 +6,7 @@ Description : Elasticsearch 클러스터의 문제를 탐색하고 telegram 을 
 History     : 2024-10-02 Seunghwan Shin       # first create
               2024-10-07 Seunghwan Shin       # Pending Task 모니터링 항목 추가.
               2024-10-08 Seunghwan Shin       # 소스코드에 추상화를 이용해서 아키텍쳐 적용
-              2024-10-00 Seunghwan Shin       # 
+              2024-10-14 Seunghwan Shin       # Pending Task 모니터링 제외.
 */ 
 
 mod common;
@@ -51,7 +51,7 @@ async fn main() {
         let maind_handler = MainHandler::new(metirc_service);
         handlers.push(maind_handler);
     }
-
+    
     loop {
 
         // Async 작업
@@ -66,16 +66,15 @@ async fn main() {
         for result in results {
             match result {
                 Ok(_) => {
-                    info!("Template processed successfully");
+                    info!("Program processed successfully");
                 }
                 Err(e) => {
-                    error!("Error processing template: {:?}", e);
+                    error!("[Error][main()] Error processing template: {:?}", e);
                 }
             }
         }
-        
+         
         //break;        
         std::thread::sleep(Duration::from_secs(10)); //60초 마다 탐색 -> 무한루프가 돌고 있으므로.
     }
-
 }
