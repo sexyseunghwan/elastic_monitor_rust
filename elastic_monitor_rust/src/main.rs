@@ -7,6 +7,7 @@ History     : 2024-10-02 Seunghwan Shin       # first create
               2024-10-07 Seunghwan Shin       # Pending Task 모니터링 항목 추가.
               2024-10-08 Seunghwan Shin       # 소스코드에 추상화를 이용해서 아키텍쳐 적용
               2024-10-14 Seunghwan Shin       # Pending Task 모니터링 제외.
+              2024-10-16 Seunghwan Shin       # 
 */ 
 
 mod common;
@@ -73,8 +74,7 @@ async fn main() {
                 }
             }
         }
-         
-        //break;        
-        std::thread::sleep(Duration::from_secs(10)); //60초 마다 탐색 -> 무한루프가 돌고 있으므로.
+        
+        std::thread::sleep(Duration::from_secs(10)); //10초 마다 탐색 -> 무한루프가 돌고 있으므로.
     }
 }

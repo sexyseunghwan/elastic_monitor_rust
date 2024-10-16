@@ -140,10 +140,10 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
 
     
     /*
-        중단된 작업 리스트를 확인해주는 함수
+        중단된 작업 리스트를 확인해주는 함수 (deprecated)
     */
     async fn get_cluster_pending_tasks(&self) -> Result<(), anyhow::Error> {
-
+        
         let pending_task = self.elastic_obj
             .get_pendging_tasks()
             .await?;
