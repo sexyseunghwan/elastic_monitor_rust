@@ -62,10 +62,6 @@ impl<M: MetricService> MainHandler<M> {
         // 4. metric value 서버로 Post
         self.metirc_service.post_cluster_nodes_infos().await?;
 
-        // 5. 기간이 지난 metric-log 삭제
-        self.metirc_service.delete_cluster_index().await?;
-
-
         Ok(())
     }
 }

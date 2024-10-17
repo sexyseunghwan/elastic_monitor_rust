@@ -33,9 +33,8 @@ pub trait EsRepository {
     async fn get_pendging_tasks(&self) -> Result<Value, anyhow::Error>;
     async fn get_node_conn_check(&self) -> Vec<(String, bool)>;
     async fn get_node_stats(&self) -> Result<Value, anyhow::Error>;
+    //async fn get_node_stats_jvm(&self) -> Result<Value, anyhow::Error>;
     async fn post_doc(&self, index_name: &str, document: Value) -> Result<(), anyhow::Error>;
-    async fn delete_index(&self, index_name: &str) -> Result<(), anyhow::Error>;
-    async fn get_index_belong_pattern(&self, index_pattern: &str) -> Result<Value, anyhow::Error>;
 
     fn get_cluster_name(&self) -> String;
     fn get_cluster_all_host_infos(&self) -> String;
@@ -300,66 +299,28 @@ impl EsRepository for EsRepositoryPub {
             Err(anyhow!(error_message))
         }
     }
-    
 
 
     /*
-        특정 인덱스 자체를 삭제해주는 함수.
+        GET _nodes/stats/jvm
     */
-    async fn delete_index(&self, index_name: &str) -> Result<(), anyhow::Error> {
+    // async fn get_node_stats_jvm(&self) -> Result<Value, anyhow::Error> {
 
-        let response = self.execute_on_any_node(|es_client| async move {
+    //     // _nodes/stats 호출 
+    //     let resp = self.get_node_stats().await?;    
+        
+    //     // _nodes/stats/jvm 파싱
+    //     if let Some(jvm_stats) = resp["nodes"]
+    //         .as_object()
+    //         .and_then(|nodes| nodes.iter().next())
+    //         .and_then(|(_, node_info)| node_info.get("jvm"))
+    //     {
+    //             Ok(jvm_stats.clone())
+    //     } else {
+    //         Ok(json!({}))
+    //     }
+    // }
     
-            let response = es_client
-                .es_conn
-                .indices()
-                .delete(IndicesDeleteParts::Index(&[index_name]))
-                .send()
-                .await?;
-            
-            Ok(response)
-        })
-        .await?;
-
-        if response.status_code().is_success() {
-            Ok(())
-        } else {
-            let error_message = format!("[Elasticsearch Error][node_delete_query()] Failed to delete document: Status Code: {}", response.status_code());
-            Err(anyhow!(error_message))
-        }
-    }
-
-    /*
-        특정 인덱스 패턴에 속하는 인덱스 전부를 가져와주는 함수.
-    */
-    async fn get_index_belong_pattern(&self, index_pattern: &str) -> Result<Value, anyhow::Error> {
-        
-        let response = self.execute_on_any_node(|es_client| async move {
-    
-            let response = es_client
-                .es_conn
-                .cat()
-                .indices(CatIndicesParts::Index(&[index_pattern]))
-                .format("json")
-                .send()
-                .await?;
-            
-            Ok(response)
-        })
-        .await?;
-        
-        if response.status_code().is_success() {
-            let response_body = response.json::<Value>().await?;
-            Ok(response_body)
-        } else {
-            let error_message = format!("[Elasticsearch Error][node_delete_query()] Failed to delete document: Status Code: {}", response.status_code());
-            Err(anyhow!(error_message))
-        }
-
-        
-
-    }
-
 
     /*
         Elasticsearch 클러스터의 이름을 가져와주는 함수.
@@ -384,5 +345,8 @@ impl EsRepository for EsRepositoryPub {
 
         hosts
     }
+
+
+
     
 }

@@ -40,8 +40,7 @@ pub use elasticsearch::{
     cat::CatIndicesParts,
     cluster::ClusterHealthParts,
     nodes::NodesStatsParts,
-    IndexParts,
-    indices::IndicesDeleteParts
+    IndexParts
 };
 
 pub use rand::{

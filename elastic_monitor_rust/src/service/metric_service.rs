@@ -17,7 +17,6 @@ pub trait MetricService {
     async fn get_cluster_unstable_index_infos(&self, cluster_status: &str) -> Result<(), anyhow::Error>;
     async fn get_cluster_pending_tasks(&self) -> Result<(), anyhow::Error>;
     async fn post_cluster_nodes_infos(&self) -> Result<(), anyhow::Error>;
-    async fn delete_cluster_index(&self) -> Result<(), anyhow::Error>;
 }
 
 
@@ -214,7 +213,25 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                     .ok_or_else(|| anyhow!("[Parsing Error][post_cluster_nodes_infos()] node_info['fs']['total']['available_in_bytes'] variable not found."))?;
                 let disk_usage = ((disk_total - disk_available) as f64 / disk_total as f64) * 100.0;
                 
-                let metric_info = MetricInfo::new(cur_utc_time_str.clone(), host.to_string(), jvm_usage, cpu_usage, disk_usage.round() as i64);
+                let jvm_young_usage = node_info["jvm"]["mem"]["pools"]["young"]["used_in_bytes"].as_i64()
+                    .ok_or_else(|| anyhow!("[Parsing Error][post_cluster_nodes_infos()] node_info['jvm']['mem']['pools']['young']['used_in_bytes'] variable not found."))?;
+                let jvm_old_usage = node_info["jvm"]["mem"]["pools"]["old"]["used_in_bytes"].as_i64()
+                    .ok_or_else(|| anyhow!("[Parsing Error][post_cluster_nodes_infos()] node_info['jvm']['mem']['pools']['old']['used_in_bytes'] variable not found."))?;
+                let jvm_survivor_usage = node_info["jvm"]["mem"]["pools"]["survivor"]["used_in_bytes"].as_i64()
+                    .ok_or_else(|| anyhow!("[Parsing Error][post_cluster_nodes_infos()] node_info['jvm']['mem']['pools']['survivor']['used_in_bytes'] variable not found."))?;
+                
+
+                let metric_info = MetricInfo::new(
+                    cur_utc_time_str.clone(), 
+                    host.to_string(), 
+                    jvm_usage, 
+                    cpu_usage, 
+                    disk_usage.round() as i64,
+                    jvm_young_usage,
+                    jvm_old_usage,
+                    jvm_survivor_usage
+                );
+
                 metric_vec.push(metric_info);
             }
             
@@ -223,46 +240,6 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 self.elastic_obj.post_doc(&index_name, document).await?;
             }
         }
-
-        Ok(())
-    }
-
-    
-    /*
-        오늘 날짜 기준 5일전 인덱스는 모두 지워준다.
-    */
-    async fn delete_cluster_index(&self) -> Result<(), anyhow::Error> {
-
-        let cur_utc_time = get_current_utc_naivedate();
-        
-        let mut delete_index_list: Vec<String> = Vec::new();
-        let res = self.elastic_obj.get_index_belong_pattern("metric_info*").await?;
-        
-        if let Some(index_obj) = res.as_array() {
-            
-            for index in index_obj {
-                let index_name = index["index"].as_str()
-                    .ok_or_else(|| anyhow!("[Parsing Error][delete_cluster_index()] index['index'] variable not found."))?;
-                
-                let word_split: Vec<&str> = index_name.split('_').collect();
-                let date = word_split.get(2)
-                    .ok_or_else(|| anyhow!("[Parsing Error][delete_cluster_index()] word_split.get(2) variable not found."))?;
-                
-                let parsed_date = NaiveDate::parse_from_str(date, "%Y%m%d")
-                    .map_err(|e| anyhow!("[Parsing Error][delete_cluster_index()] An error occurred while converting 'parsed_date' data. // date: {:?}, {:?}", date ,e))?;
-                let five_days_ago = cur_utc_time - chrono::Duration::days(5);
-                
-                if parsed_date <= five_days_ago {
-                    delete_index_list.push(index_name.to_string());
-                }
-            }
-        }
-        
-        // 날짜가 5일이 지난 인덱스는 제거.
-        for delete_index in delete_index_list {
-            self.elastic_obj.delete_index(&delete_index).await?;
-            info!("{} index removed", delete_index);  
-        }                
 
         Ok(())
     }

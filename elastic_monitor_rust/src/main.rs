@@ -7,7 +7,8 @@ History     : 2024-10-02 Seunghwan Shin       # first create
               2024-10-07 Seunghwan Shin       # Pending Task 모니터링 항목 추가.
               2024-10-08 Seunghwan Shin       # 소스코드에 추상화를 이용해서 아키텍쳐 적용
               2024-10-14 Seunghwan Shin       # Pending Task 모니터링 제외.
-              2024-10-16 Seunghwan Shin       # 
+              2024-10-17 Seunghwan Shin       # 1) 인덱스 삭제 알고리즘 제거
+                                                2) jvm young, old, survivor 지표 모니터링 대상 추가
 */ 
 
 mod common;
@@ -52,6 +53,7 @@ async fn main() {
         let maind_handler = MainHandler::new(metirc_service);
         handlers.push(maind_handler);
     }
+    
     
     loop {
 
