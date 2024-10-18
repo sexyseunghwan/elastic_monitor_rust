@@ -4,7 +4,8 @@ pub use std::{
     fs::File,
     sync::Arc,
     future::Future,
-    str::FromStr
+    str::FromStr,
+    convert::TryInto
 };
 
 pub use tokio::{

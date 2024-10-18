@@ -2,6 +2,7 @@ use crate::common::*;
 
 use crate::utils_modules::time_utils::*;
 use crate::utils_modules::json_utils::*;
+use crate::utils_modules::calculate_utils::*;
 
 use crate::model::MessageFormatter::MessageFormatter;
 use crate::model::Indicies::*;
@@ -209,7 +210,9 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 
                 let disk_total: i64 = get_value_by_path(node_info, "fs.total.total_in_bytes")?;
                 let disk_available: i64 = get_value_by_path(node_info, "fs.total.available_in_bytes")?;
-                let disk_usage = ((disk_total - disk_available) as f64 / disk_total as f64) * 100.0;
+                let disk_usage = get_percentage_round_conversion(disk_total - disk_available, disk_total, 2)?;
+                
+                println!("{:?}", (disk_total - disk_available) as f64 / disk_total as f64);
 
                 let jvm_young_usage: i64 = get_value_by_path(node_info, "jvm.mem.pools.young.used_in_bytes")?;
                 let jvm_old_usage: i64 = get_value_by_path(node_info, "jvm.mem.pools.old.used_in_bytes")?;
@@ -217,13 +220,13 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
 
                 let query_cache_total_cnt: i64 = get_value_by_path(node_info, "indices.query_cache.total_count")?;
                 let query_cache_hit_cnt: i64 = get_value_by_path(node_info, "indices.query_cache.hit_count")?;
-                let query_cache_hit =  ((query_cache_hit_cnt as f64 / query_cache_total_cnt as f64) * 10000.0).round() / 100.0;
+                let query_cache_hit = get_percentage_round_conversion(query_cache_hit_cnt, query_cache_total_cnt, 2)?;
                 let cache_memory_size: i64 = get_value_by_path(node_info, "indices.query_cache.memory_size_in_bytes")?;
 
                 let os_swap_total_in_bytes: i64 = get_value_by_path(node_info, "os.swap.total_in_bytes")?;
                 let os_swap_used_in_bytes: i64 = get_value_by_path(node_info, "os.swap.used_in_bytes")?;
-                let os_swap_usage = ((os_swap_used_in_bytes as f64 / os_swap_total_in_bytes as f64) * 10000.0).round() / 100.0;
-
+                let os_swap_usage = get_percentage_round_conversion(os_swap_used_in_bytes, os_swap_total_in_bytes, 2)?;
+                
                 
                 let metric_info = MetricInfo::new(
                     cur_utc_time_str.clone(), 
