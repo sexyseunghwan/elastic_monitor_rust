@@ -1,6 +1,7 @@
 use crate::common::*;
 
 use crate::utils_modules::time_utils::*;
+use crate::utils_modules::json_utils::*;
 
 use crate::model::MessageFormatter::MessageFormatter;
 use crate::model::Indicies::*;
@@ -178,15 +179,16 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         Ok(())
     }
 
-
     /*
         각 cluster node 들의 정보를 elasticsearch 에 적재하는 함수
     */
     async fn post_cluster_nodes_infos(&self) -> Result<(), anyhow::Error> {
 
+        let query_feilds = ["host", "fs", "jvm", "indices", "os"];
+
         let cluster_metrics: Value = self
             .elastic_obj
-            .get_node_stats()
+            .get_node_stats(&query_feilds)
             .await?;
 
         if let Some(nodes) = cluster_metrics["nodes"].as_object() { 
@@ -195,32 +197,34 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
             let cur_utc_time_str = get_str_from_naivedatetime(cur_utc_time, "%Y-%m-%dT%H:%M:%SZ")?;
             
             // 날짜 기준으로 인덱스 이름 맵핑
-            let index_name = format!("metric_info_{}", get_str_from_naivedatetime(cur_utc_time, "%Y%m%d")?);
+            let index_pattern = self.elastic_obj.get_cluster_index_pattern();
+            let index_name = format!("{}{}", index_pattern, get_str_from_naivedatetime(cur_utc_time, "%Y%m%d")?);
             let mut metric_vec: Vec<MetricInfo> = Vec::new();
             
-            for (_node_id, node_info) in nodes {
+            for (_node_id, node_info) in nodes {    
                 
-                let host = node_info["host"].as_str()
-                    .ok_or_else(|| anyhow!("[Parsing Error][post_cluster_nodes_infos()] node_info['host'] variable not found."))?;
-                let cpu_usage = node_info["os"]["cpu"]["percent"].as_i64()
-                    .ok_or_else(|| anyhow!("[Parsing Error][post_cluster_nodes_infos()] node_info['os']['cpu']['percent'] variable not found."))?;
-                let jvm_usage = node_info["jvm"]["mem"]["heap_used_percent"].as_i64()
-                    .ok_or_else(|| anyhow!("[Parsing Error][post_cluster_nodes_infos()] node_info['jvm']['mem']['heap_used_percent'] variable not found."))?;
+                let host: String = get_value_by_path(node_info, "host")?;
+                let cpu_usage: i64 = get_value_by_path(node_info, "os.cpu.percent")?;
+                let jvm_usage: i64 = get_value_by_path(node_info, "jvm.mem.heap_used_percent")?;
                 
-                let disk_total = node_info["fs"]["total"]["total_in_bytes"].as_i64()
-                    .ok_or_else(|| anyhow!("[Parsing Error][post_cluster_nodes_infos()] node_info['fs']['total']['total_in_bytes'] variable not found."))?;
-                let disk_available = node_info["fs"]["total"]["available_in_bytes"].as_i64()
-                    .ok_or_else(|| anyhow!("[Parsing Error][post_cluster_nodes_infos()] node_info['fs']['total']['available_in_bytes'] variable not found."))?;
+                let disk_total: i64 = get_value_by_path(node_info, "fs.total.total_in_bytes")?;
+                let disk_available: i64 = get_value_by_path(node_info, "fs.total.available_in_bytes")?;
                 let disk_usage = ((disk_total - disk_available) as f64 / disk_total as f64) * 100.0;
-                
-                let jvm_young_usage = node_info["jvm"]["mem"]["pools"]["young"]["used_in_bytes"].as_i64()
-                    .ok_or_else(|| anyhow!("[Parsing Error][post_cluster_nodes_infos()] node_info['jvm']['mem']['pools']['young']['used_in_bytes'] variable not found."))?;
-                let jvm_old_usage = node_info["jvm"]["mem"]["pools"]["old"]["used_in_bytes"].as_i64()
-                    .ok_or_else(|| anyhow!("[Parsing Error][post_cluster_nodes_infos()] node_info['jvm']['mem']['pools']['old']['used_in_bytes'] variable not found."))?;
-                let jvm_survivor_usage = node_info["jvm"]["mem"]["pools"]["survivor"]["used_in_bytes"].as_i64()
-                    .ok_or_else(|| anyhow!("[Parsing Error][post_cluster_nodes_infos()] node_info['jvm']['mem']['pools']['survivor']['used_in_bytes'] variable not found."))?;
-                
 
+                let jvm_young_usage: i64 = get_value_by_path(node_info, "jvm.mem.pools.young.used_in_bytes")?;
+                let jvm_old_usage: i64 = get_value_by_path(node_info, "jvm.mem.pools.old.used_in_bytes")?;
+                let jvm_survivor_usage: i64 = get_value_by_path(node_info, "jvm.mem.pools.survivor.used_in_bytes")?;
+
+                let query_cache_total_cnt: i64 = get_value_by_path(node_info, "indices.query_cache.total_count")?;
+                let query_cache_hit_cnt: i64 = get_value_by_path(node_info, "indices.query_cache.hit_count")?;
+                let query_cache_hit =  ((query_cache_hit_cnt as f64 / query_cache_total_cnt as f64) * 10000.0).round() / 100.0;
+                let cache_memory_size: i64 = get_value_by_path(node_info, "indices.query_cache.memory_size_in_bytes")?;
+
+                let os_swap_total_in_bytes: i64 = get_value_by_path(node_info, "os.swap.total_in_bytes")?;
+                let os_swap_used_in_bytes: i64 = get_value_by_path(node_info, "os.swap.used_in_bytes")?;
+                let os_swap_usage = ((os_swap_used_in_bytes as f64 / os_swap_total_in_bytes as f64) * 10000.0).round() / 100.0;
+
+                
                 let metric_info = MetricInfo::new(
                     cur_utc_time_str.clone(), 
                     host.to_string(), 
@@ -229,7 +233,11 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                     disk_usage.round() as i64,
                     jvm_young_usage,
                     jvm_old_usage,
-                    jvm_survivor_usage
+                    jvm_survivor_usage,
+                    query_cache_hit,
+                    cache_memory_size,
+                    os_swap_total_in_bytes,
+                    os_swap_usage
                 );
 
                 metric_vec.push(metric_info);

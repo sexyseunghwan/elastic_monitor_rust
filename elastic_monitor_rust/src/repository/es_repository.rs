@@ -17,7 +17,9 @@ pub fn initialize_db_clients(es_info_path: &str) -> Result<Vec<EsRepositoryPub>,
             &config.cluster_name,
             config.hosts.clone(), 
             &config.es_id, 
-            &config.es_pw)?;
+            &config.es_pw,
+            &config.index_pattern
+        )?;
         
         elastic_conn_vec.push(es_helper);
     }
@@ -32,12 +34,13 @@ pub trait EsRepository {
     async fn get_health_info(&self) -> Result<Value, anyhow::Error>;
     async fn get_pendging_tasks(&self) -> Result<Value, anyhow::Error>;
     async fn get_node_conn_check(&self) -> Vec<(String, bool)>;
-    async fn get_node_stats(&self) -> Result<Value, anyhow::Error>;
+    async fn get_node_stats(&self, feilds: &[&str]) -> Result<Value, anyhow::Error>;
     //async fn get_node_stats_jvm(&self) -> Result<Value, anyhow::Error>;
     async fn post_doc(&self, index_name: &str, document: Value) -> Result<(), anyhow::Error>;
 
     fn get_cluster_name(&self) -> String;
     fn get_cluster_all_host_infos(&self) -> String;
+    fn get_cluster_index_pattern(&self) -> String;
 }
 
 #[derive(Debug, Getters, Clone)]
@@ -45,6 +48,7 @@ pub trait EsRepository {
 pub struct EsRepositoryPub {
     pub cluster_name: String,
     pub es_clients: Vec<Arc<EsClient>>,
+    pub index_pattern: String
 }
 
 
@@ -57,7 +61,7 @@ pub(crate) struct EsClient {
 
 impl EsRepositoryPub {
     
-    pub fn new(cluster_name: &str, hosts: Vec<String>, es_id: &str, es_pw: &str) -> Result<Self, anyhow::Error> {
+    pub fn new(cluster_name: &str, hosts: Vec<String>, es_id: &str, es_pw: &str, index_pattern: &str) -> Result<Self, anyhow::Error> {
 
         let mut es_clients: Vec<Arc<EsClient>> = Vec::new();
         
@@ -75,8 +79,8 @@ impl EsRepositoryPub {
             let es_client = Arc::new(EsClient::new(url, elastic_conn));
             es_clients.push(es_client);
         }
-
-        Ok(EsRepositoryPub{cluster_name: cluster_name.to_string(), es_clients})
+        
+        Ok(EsRepositoryPub{cluster_name: cluster_name.to_string(), es_clients, index_pattern: index_pattern.to_string()})
     }
     
     
@@ -237,9 +241,9 @@ impl EsRepository for EsRepositoryPub {
     }
 
     /*
-        클러스터 각 노드의 metric value 를 반환해주는 함수.    
+        클러스터 각 노드의 metric value 를 반환해주는 함수. 
     */
-    async fn get_node_stats(&self) -> Result<Value, anyhow::Error> {
+    async fn get_node_stats(&self, feilds: &[&str]) -> Result<Value, anyhow::Error> {
         
         let response = self.execute_on_any_node(|es_client| async move { 
 
@@ -247,7 +251,8 @@ impl EsRepository for EsRepositoryPub {
             let response = es_client
                 .es_conn
                 .nodes()
-                .stats(NodesStatsParts::None)  
+                .stats(NodesStatsParts::None)
+                .fields(feilds)  
                 .send()
                 .await?;
 
@@ -302,27 +307,6 @@ impl EsRepository for EsRepositoryPub {
 
 
     /*
-        GET _nodes/stats/jvm
-    */
-    // async fn get_node_stats_jvm(&self) -> Result<Value, anyhow::Error> {
-
-    //     // _nodes/stats 호출 
-    //     let resp = self.get_node_stats().await?;    
-        
-    //     // _nodes/stats/jvm 파싱
-    //     if let Some(jvm_stats) = resp["nodes"]
-    //         .as_object()
-    //         .and_then(|nodes| nodes.iter().next())
-    //         .and_then(|(_, node_info)| node_info.get("jvm"))
-    //     {
-    //             Ok(jvm_stats.clone())
-    //     } else {
-    //         Ok(json!({}))
-    //     }
-    // }
-    
-
-    /*
         Elasticsearch 클러스터의 이름을 가져와주는 함수.
     */
     fn get_cluster_name(&self) -> String {
@@ -346,7 +330,15 @@ impl EsRepository for EsRepositoryPub {
         hosts
     }
 
+    /*
+        Cluster 정보를 맵핑해줄 index pattern 형식을 반환.
+    */
+    fn get_cluster_index_pattern(&self) -> String {
+        self.index_pattern.to_string()
+    }
 
+
+    
 
     
 }

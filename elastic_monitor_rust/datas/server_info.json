@@ -8,7 +8,8 @@
           "221.149.34.65:2027"
         ],
         "es_id": "elastic",
-        "es_pw": "156452"
+        "es_pw": "156452",
+        "index_pattern": "metric_info_log_"
       }
     ]
 }
