@@ -212,8 +212,6 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 let disk_available: i64 = get_value_by_path(node_info, "fs.total.available_in_bytes")?;
                 let disk_usage = get_percentage_round_conversion(disk_total - disk_available, disk_total, 2)?;
                 
-                println!("{:?}", (disk_total - disk_available) as f64 / disk_total as f64);
-
                 let jvm_young_usage: i64 = get_value_by_path(node_info, "jvm.mem.pools.young.used_in_bytes")?;
                 let jvm_old_usage: i64 = get_value_by_path(node_info, "jvm.mem.pools.old.used_in_bytes")?;
                 let jvm_survivor_usage: i64 = get_value_by_path(node_info, "jvm.mem.pools.survivor.used_in_bytes")?;
