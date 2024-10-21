@@ -185,7 +185,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
     */
     async fn post_cluster_nodes_infos(&self) -> Result<(), anyhow::Error> {
 
-        let query_feilds = ["host", "fs", "jvm", "indices", "os"];
+        let query_feilds = ["host", "fs", "jvm", "indices", "os", "http"];
 
         let cluster_metrics: Value = self
             .elastic_obj
@@ -215,7 +215,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 let jvm_young_usage: i64 = get_value_by_path(node_info, "jvm.mem.pools.young.used_in_bytes")?;
                 let jvm_old_usage: i64 = get_value_by_path(node_info, "jvm.mem.pools.old.used_in_bytes")?;
                 let jvm_survivor_usage: i64 = get_value_by_path(node_info, "jvm.mem.pools.survivor.used_in_bytes")?;
-
+                
                 let query_cache_total_cnt: i64 = get_value_by_path(node_info, "indices.query_cache.total_count")?;
                 let query_cache_hit_cnt: i64 = get_value_by_path(node_info, "indices.query_cache.hit_count")?;
                 let query_cache_hit = get_percentage_round_conversion(query_cache_hit_cnt, query_cache_total_cnt, 2)?;
@@ -225,6 +225,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 let os_swap_used_in_bytes: i64 = get_value_by_path(node_info, "os.swap.used_in_bytes")?;
                 let os_swap_usage = get_percentage_round_conversion(os_swap_used_in_bytes, os_swap_total_in_bytes, 2)?;
                 
+                let http_current_open: i64 = get_value_by_path(node_info, "http.current_open")?;
                 
                 let metric_info = MetricInfo::new(
                     cur_utc_time_str.clone(), 
@@ -238,9 +239,10 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                     query_cache_hit,
                     cache_memory_size,
                     os_swap_total_in_bytes,
-                    os_swap_usage
+                    os_swap_usage,
+                    http_current_open
                 );
-
+                
                 metric_vec.push(metric_info);
             }
             

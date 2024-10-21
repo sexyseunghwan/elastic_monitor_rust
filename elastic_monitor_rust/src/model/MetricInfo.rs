@@ -13,5 +13,6 @@ pub struct MetricInfo {
      pub query_cache_hit: f64,
      pub cache_memory_size: i64,
      pub os_swap_total_in_bytes: i64,
-     pub os_swap_usage: f64
+     pub os_swap_usage: f64,
+     pub http_current_open: i64
 }

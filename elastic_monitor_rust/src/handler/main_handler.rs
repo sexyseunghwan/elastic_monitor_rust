@@ -57,9 +57,9 @@ impl<M: MetricService> MainHandler<M> {
         //     // 3. 클러스터의 상태가 Green이 아니라면 인덱스의 상태를 살핀다.
         //     self.metirc_service.get_cluster_unstable_index_infos(&health_status).await?;
         // }
-
         
-        // 4. metric value 서버로 Post
+        
+        // 4. Elasticsearch metric value 서버로 Post
         self.metirc_service.post_cluster_nodes_infos().await?;
 
         Ok(())
