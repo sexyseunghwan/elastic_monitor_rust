@@ -227,6 +227,10 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 
                 let http_current_open: i64 = get_value_by_path(node_info, "http.current_open")?;
                 
+                // 1. search, indexing latency
+                // 2. shard 개수 모니터링 필요.
+
+
                 let metric_info = MetricInfo::new(
                     cur_utc_time_str.clone(), 
                     host.to_string(), 
