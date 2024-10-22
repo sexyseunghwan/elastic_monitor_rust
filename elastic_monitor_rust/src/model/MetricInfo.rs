@@ -1,6 +1,7 @@
 use crate::common::*;
 
-#[derive(Clone, Serialize, Deserialize, Debug, new)]
+#[derive(Clone, Serialize, Deserialize, Debug, Getters, new)]
+#[getset(get = "pub", set = "pub")]
 pub struct MetricInfo {
      pub timestamp: String,
      pub host: String,
@@ -14,5 +15,9 @@ pub struct MetricInfo {
      pub cache_memory_size: i64,
      pub os_swap_total_in_bytes: i64,
      pub os_swap_usage: f64,
-     pub http_current_open: i64
+     pub http_current_open: i64,
+     pub node_shard_cnt: i64,
+     pub indexing_latency: f64,
+     pub query_latency: f64,
+     pub fetch_latency: f64
 }

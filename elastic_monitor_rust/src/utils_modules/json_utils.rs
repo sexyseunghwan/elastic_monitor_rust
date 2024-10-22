@@ -1,7 +1,7 @@
 use crate::common::*;
 
 
-#[doc = ""]
+#[doc = "json 객체를 파싱하기 위한 함수"]
 pub fn get_value_by_path<T: FromStr>(json_value: &Value, path: &str) -> Result<T, anyhow::Error> {
     
     let mut current_value = json_value;

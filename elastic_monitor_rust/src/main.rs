@@ -9,7 +9,8 @@ History     : 2024-10-02 Seunghwan Shin       # first create
               2024-10-14 Seunghwan Shin       # Pending Task 모니터링 제외.
               2024-10-17 Seunghwan Shin       # 1) 인덱스 삭제 알고리즘 제거
                                                 2) jvm young, old, survivor 지표 모니터링 대상 추가
-              2024-10-21 Seunghwan Shin       # Elasticsearch 지표 모니터링 대상 추가 
+              2024-10-22 Seunghwan Shin       # 1) Elasticsearch 지표 모니터링 대상 추가
+                                                2)  
 */ 
 
 mod common;
@@ -77,8 +78,8 @@ async fn main() {
                 }
             }
         }   
-
-        //break;
-        std::thread::sleep(Duration::from_secs(10)); //10초 마다 탐색 -> 무한루프가 돌고 있으므로.
+        
+        break;
+        //std::thread::sleep(Duration::from_secs(10)); //10초 마다 탐색 -> 무한루프가 돌고 있으므로.
     }
 }

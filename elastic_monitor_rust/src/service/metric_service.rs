@@ -18,6 +18,9 @@ pub trait MetricService {
     async fn get_cluster_health_check(&self) -> Result<String, anyhow::Error>;
     async fn get_cluster_unstable_index_infos(&self, cluster_status: &str) -> Result<(), anyhow::Error>;
     async fn get_cluster_pending_tasks(&self) -> Result<(), anyhow::Error>;
+    
+    async fn get_nodes_stats_handle(&self, metric_vec: &mut Vec<MetricInfo>, cur_utc_time_str: &str) -> Result<(), anyhow::Error>;
+    async fn get_cat_shards_handle(&self, metric_vec: &mut Vec<MetricInfo>) -> Result<(), anyhow::Error>;
     async fn post_cluster_nodes_infos(&self) -> Result<(), anyhow::Error>;
 }
 
@@ -40,9 +43,8 @@ impl<R: EsRepository> MetricServicePub<R> {
 #[async_trait]
 impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
     
-    /*
-        Elasticsearch 클러스터 내의 각 노드의 상태를 체크해주는 함수
-    */
+    
+    #[doc="Elasticsearch 클러스터 내의 각 노드의 상태를 체크해주는 함수"]
     async fn get_cluster_node_check(&self) -> Result<bool, anyhow::Error> {
         
         let conn_stats = self.elastic_obj.get_node_conn_check().await;
@@ -79,9 +81,8 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
     }
     
 
-    /*
-        Cluster 의 상태를 반환해주는 함수 -> green, yellow, red
-    */
+    
+    #[doc="Cluster 의 상태를 반환해주는 함수 -> green, yellow, red"]
     async fn get_cluster_health_check(&self) -> Result<String, anyhow::Error> {
         
         // 클러스터 상태 체크
@@ -96,9 +97,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
     }
 
     
-    /*
-        불안정한 인덱스들을 추출하는 함수
-    */
+    #[doc="불안정한 인덱스들을 추출하는 함수"]
     async fn get_cluster_unstable_index_infos(&self, cluster_status: &str) -> Result<(), anyhow::Error> {
 
         let cluster_stat_resp = self.elastic_obj.get_indices_info().await?;
@@ -140,9 +139,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
     }
 
     
-    /*
-        중단된 작업 리스트를 확인해주는 함수 (deprecated)
-    */
+    #[doc="중단된 작업 리스트를 확인해주는 함수 (deprecated)"]
     async fn get_cluster_pending_tasks(&self) -> Result<(), anyhow::Error> {
         
         let pending_task = self.elastic_obj
@@ -180,27 +177,19 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         Ok(())
     }
 
-    /*
-        각 cluster node 들의 정보를 elasticsearch 에 적재하는 함수
-    */
-    async fn post_cluster_nodes_infos(&self) -> Result<(), anyhow::Error> {
+
+    #[doc = "GET /_nodes/stats 정보들을 핸들링 해주는 함수"]
+    async fn get_nodes_stats_handle(&self, metric_vec: &mut Vec<MetricInfo>, cur_utc_time_str: &str) -> Result<(), anyhow::Error> {
 
         let query_feilds = ["host", "fs", "jvm", "indices", "os", "http"];
 
-        let cluster_metrics: Value = self
+        // GET /_nodes/stats
+        let get_nodes_stats: Value = self
             .elastic_obj
             .get_node_stats(&query_feilds)
             .await?;
-
-        if let Some(nodes) = cluster_metrics["nodes"].as_object() { 
-
-            let cur_utc_time = get_currnet_utc_naivedatetime();
-            let cur_utc_time_str = get_str_from_naivedatetime(cur_utc_time, "%Y-%m-%dT%H:%M:%SZ")?;
-            
-            // 날짜 기준으로 인덱스 이름 맵핑
-            let index_pattern = self.elastic_obj.get_cluster_index_pattern();
-            let index_name = format!("{}{}", index_pattern, get_str_from_naivedatetime(cur_utc_time, "%Y%m%d")?);
-            let mut metric_vec: Vec<MetricInfo> = Vec::new();
+        
+        if let Some(nodes) = get_nodes_stats["nodes"].as_object() { 
             
             for (_node_id, node_info) in nodes {    
                 
@@ -227,12 +216,22 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 
                 let http_current_open: i64 = get_value_by_path(node_info, "http.current_open")?;
                 
-                // 1. search, indexing latency
-                // 2. shard 개수 모니터링 필요.
+                let indexing_total: i64 = get_value_by_path(node_info, "indices.indexing.index_total")?;
+                let index_time_in_millis: i64 = get_value_by_path(node_info, "indices.indexing.index_time_in_millis")?;
+                let indexing_latency = get_decimal_round_conversion(index_time_in_millis as f64 / indexing_total as f64, 2)?;
 
+
+                let query_total: i64 = get_value_by_path(node_info, "indices.search.query_total")?;
+                let query_time_in_millis: i64 = get_value_by_path(node_info, "indices.search.query_time_in_millis")?;
+                let query_latency = get_decimal_round_conversion(query_time_in_millis as f64 / query_total as f64, 2)?;
+                
+
+                let fetch_total: i64 = get_value_by_path(node_info, "indices.search.fetch_total")?;
+                let fetch_time_in_millis: i64 = get_value_by_path(node_info, "indices.search.fetch_time_in_millis")?;
+                let fetch_latency = get_decimal_round_conversion(fetch_time_in_millis as f64 / fetch_total as f64, 2)?;
 
                 let metric_info = MetricInfo::new(
-                    cur_utc_time_str.clone(), 
+                    cur_utc_time_str.to_string(), 
                     host.to_string(), 
                     jvm_usage, 
                     cpu_usage, 
@@ -244,17 +243,83 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                     cache_memory_size,
                     os_swap_total_in_bytes,
                     os_swap_usage,
-                    http_current_open
+                    http_current_open,
+                    0,
+                    indexing_latency,
+                    query_latency,
+                    fetch_latency
                 );
                 
                 metric_vec.push(metric_info);
             }
-            
-            for metric in metric_vec {
-                let document: Value = serde_json::to_value(&metric)?;
-                self.elastic_obj.post_doc(&index_name, document).await?;
-            }
+
         }
+        
+        Ok(())
+    }
+
+
+    #[doc = "GET /_cat/shards 정보들을 핸들링 해주는 함수"]
+    async fn get_cat_shards_handle(&self, metric_vec: &mut Vec<MetricInfo>) -> Result<(), anyhow::Error> {
+
+        let query_feilds = ["ip"];
+
+        // GET /_nodes/stats
+        let get_cat_shards: String = self
+            .elastic_obj
+            .get_cat_shards(&query_feilds)
+            .await?;
+
+        let mut host_map: HashMap<String, i64> = HashMap::new();
+
+        let parsed_data: Vec<&str> = get_cat_shards.split('\n').filter(|s| !s.is_empty()).collect();
+        
+        for ip_host in parsed_data {
+
+            host_map.entry(ip_host.to_string())
+                .and_modify(|value| *value += 1)
+                .or_insert(1);  
+            
+        }
+        
+        for metric_info in metric_vec {
+            
+            let host_ip = metric_info.host().clone();
+            let shard_cnt = host_map.entry(host_ip).or_insert(0);
+            
+            metric_info.node_shard_cnt = shard_cnt.clone();
+        }
+        
+
+        Ok(())
+    }
+    
+
+    #[doc="각 cluster node 들의 정보를 elasticsearch 에 적재하는 함수"]
+    async fn post_cluster_nodes_infos(&self) -> Result<(), anyhow::Error> {
+
+        // 지표를 저장해줄 인스턴스 벡터.
+        let mut metric_vec: Vec<MetricInfo> = Vec::new();
+
+        let cur_utc_time = get_currnet_utc_naivedatetime();
+        let cur_utc_time_str = get_str_from_naivedatetime(cur_utc_time, "%Y-%m-%dT%H:%M:%SZ")?;
+        
+        // 날짜 기준으로 인덱스 이름 맵핑
+        let index_pattern = self.elastic_obj.get_cluster_index_pattern();
+        let index_name = format!("{}{}", index_pattern, get_str_from_naivedatetime(cur_utc_time, "%Y%m%d")?);
+
+        // 1. GET /_nodes/stats
+        self.get_nodes_stats_handle(&mut metric_vec, &cur_utc_time_str).await?;
+        
+        // 2. GET /_cat/shards
+        self.get_cat_shards_handle(&mut metric_vec).await?;
+        
+        
+        for metric in metric_vec {
+            let document: Value = serde_json::to_value(&metric)?;
+            self.elastic_obj.post_doc(&index_name, document).await?;
+        }
+
 
         Ok(())
     }

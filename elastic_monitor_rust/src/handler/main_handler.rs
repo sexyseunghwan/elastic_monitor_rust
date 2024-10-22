@@ -7,18 +7,16 @@ pub struct MainHandler<M: MetricService> {
     metirc_service: M
 }
 
+
 impl<M: MetricService> MainHandler<M> {
 
-    // 생성자
     pub fn new(metirc_service: M) -> Self {
         Self {
             metirc_service,
         }
     }
     
-    /*
-        Task 세트 
-    */
+    #[doc="Task 세트"]
     pub async fn task_set(&self) -> Result<(), anyhow::Error> {
         
         // 1. 클러스터의 각 노드의 연결 문제가 없는지 살핀다.

@@ -5,7 +5,7 @@ pub use std::{
     sync::Arc,
     future::Future,
     str::FromStr,
-    convert::TryInto
+    collections::HashMap
 };
 
 pub use tokio::{
@@ -38,7 +38,7 @@ pub use elasticsearch::{
     http::transport::{SingleNodeConnectionPool, TransportBuilder},
     http::Url,
     http::response::Response,
-    cat::CatIndicesParts,
+    cat::{ CatIndicesParts, CatShardsParts },
     cluster::ClusterHealthParts,
     nodes::NodesStatsParts,
     IndexParts
