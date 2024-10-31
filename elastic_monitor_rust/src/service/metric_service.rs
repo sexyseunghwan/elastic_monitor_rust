@@ -218,17 +218,20 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 
                 let indexing_total: i64 = get_value_by_path(node_info, "indices.indexing.index_total")?;
                 let index_time_in_millis: i64 = get_value_by_path(node_info, "indices.indexing.index_time_in_millis")?;
-                let indexing_latency = get_decimal_round_conversion(index_time_in_millis as f64 / indexing_total as f64, 2)?;
+                let indexing_latency = get_decimal_round_conversion(index_time_in_millis as f64 / indexing_total as f64, 5)?;
 
 
                 let query_total: i64 = get_value_by_path(node_info, "indices.search.query_total")?;
                 let query_time_in_millis: i64 = get_value_by_path(node_info, "indices.search.query_time_in_millis")?;
-                let query_latency = get_decimal_round_conversion(query_time_in_millis as f64 / query_total as f64, 2)?;
+                let query_latency = query_time_in_millis as f64 / query_total as f64;
+                //get_decimal_round_conversion(query_time_in_millis as f64 / query_total as f64, 5)?;
                 
 
                 let fetch_total: i64 = get_value_by_path(node_info, "indices.search.fetch_total")?;
                 let fetch_time_in_millis: i64 = get_value_by_path(node_info, "indices.search.fetch_time_in_millis")?;
-                let fetch_latency = get_decimal_round_conversion(fetch_time_in_millis as f64 / fetch_total as f64, 2)?;
+                let fetch_latency = fetch_time_in_millis as f64 / fetch_total as f64;
+                //get_decimal_round_conversion(fetch_time_in_millis as f64 / fetch_total as f64, 5)?;
+
 
                 let metric_info = MetricInfo::new(
                     cur_utc_time_str.to_string(), 
