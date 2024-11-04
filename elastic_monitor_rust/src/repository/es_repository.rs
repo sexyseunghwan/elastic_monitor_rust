@@ -34,12 +34,12 @@ pub trait EsRepository {
     async fn get_pendging_tasks(&self) -> Result<Value, anyhow::Error>;
     async fn get_node_conn_check(&self) -> Vec<(String, bool)>;
     async fn get_node_stats(&self, fields: &[&str]) -> Result<Value, anyhow::Error>;
-    //async fn get_node_stats_jvm(&self) -> Result<Value, anyhow::Error>;
+    
     async fn get_cat_shards(&self, fields: &[&str]) -> Result<String, anyhow::Error>;
     async fn post_doc(&self, index_name: &str, document: Value) -> Result<(), anyhow::Error>;
 
     fn get_cluster_name(&self) -> String;
-    fn get_cluster_all_host_infos(&self) -> String;
+    fn get_cluster_all_host_infos(&self) -> Vec<String>;
     fn get_cluster_index_pattern(&self) -> String;
 }
 
@@ -92,14 +92,14 @@ impl EsRepositoryPub {
     {
         let mut last_error = None;
     
-        // StdRng를 사용하여 Send 트레잇 문제 해결
-        let mut rng = StdRng::from_entropy(); // 랜덤 시드로 생성
+        /* StdRng를 사용하여 Send 트레잇 문제 해결 - 랜덤 시드로 생성 */ 
+        let mut rng = StdRng::from_entropy(); 
         
-        // 클라이언트 목록을 셔플
+        /* 클라이언트 목록을 셔플 */ 
         let mut shuffled_clients: Vec<Arc<EsClient>> = self.es_clients.clone();
-        shuffled_clients.shuffle(&mut rng); // StdRng를 사용하여 셔플
+        shuffled_clients.shuffle(&mut rng); /* StdRng를 사용하여 셔플 */ 
         
-        // 셔플된 클라이언트들에 대해 순차적으로 operation 수행
+        /* 셔플된 클라이언트들에 대해 순차적으로 operation 수행 */ 
         for es_client in shuffled_clients {
             match operation(es_client).await {
                 Ok(response) => return Ok(response),
@@ -109,7 +109,7 @@ impl EsRepositoryPub {
             }
         }
         
-        // 모든 노드에서 실패했을 경우 에러 반환
+        /* 모든 노드에서 실패했을 경우 에러 반환 */ 
         Err(anyhow::anyhow!(
             "All Elasticsearch nodes failed. Last error: {:?}",
             last_error
@@ -154,7 +154,7 @@ impl EsRepository for EsRepositoryPub {
         
         let response = self.execute_on_any_node(|es_client| async move { 
 
-            // _cluster/health 요청
+            /* _cluster/health 요청 */ 
             let response = es_client
                 .es_conn
                 .cluster()
@@ -184,7 +184,7 @@ impl EsRepository for EsRepositoryPub {
 
         let response = self.execute_on_any_node(|es_client| async move { 
 
-            // _cluster/pending_tasks 요청
+            /* _cluster/pending_tasks 요청 */ 
             let response = es_client
                 .es_conn
                 .cluster()
@@ -209,6 +209,7 @@ impl EsRepository for EsRepositoryPub {
     }
 
     
+    
     #[doc="Elasticsearch 각 노드들이 현재 문제 없이 통신이 되는지 체크해주는 함수."]
     async fn get_node_conn_check(&self) -> Vec<(String, bool)> {
 
@@ -229,17 +230,16 @@ impl EsRepository for EsRepositoryPub {
             }
         });    
         
-        
         join_all(futures).await
     }
-
+    
     
     #[doc="클러스터 각 노드의 metric value 를 반환해주는 함수."]
     async fn get_node_stats(&self, fields: &[&str]) -> Result<Value, anyhow::Error> {
         
         let response = self.execute_on_any_node(|es_client| async move { 
 
-            // _nodes/stats 요청
+            /* _nodes/stats 요청 */ 
             let response = es_client
                 .es_conn
                 .nodes()
@@ -269,7 +269,7 @@ impl EsRepository for EsRepositoryPub {
 
         let response = self.execute_on_any_node(|es_client| async move { 
 
-            // _nodes/stats 요청
+            /* _nodes/stats 요청 */ 
             let response = es_client
                 .es_conn
                 .cat()
@@ -298,11 +298,12 @@ impl EsRepository for EsRepositoryPub {
     #[doc="특정 인덱스에 데이터를 insert 해주는 함수."]
     async fn post_doc(&self, index_name: &str, document: Value) -> Result<(), anyhow::Error> {
 
-        // 클로저 내에서 사용할 복사본을 생성
+        /* 클로저 내에서 사용할 복사본을 생성 */ 
         let document_clone = document.clone();
         
         let response = self.execute_on_any_node(|es_client| {
-            // 클로저 내부에서 클론한 값 사용
+            
+            /* 클로저 내부에서 클론한 값 사용 */ 
             let value = document_clone.clone(); 
     
             async move { 
@@ -336,16 +337,16 @@ impl EsRepository for EsRepositoryPub {
     
     
     #[doc="Cluster 내의 모든 호스트들을 반환해주는 함수."]
-    fn get_cluster_all_host_infos(&self) -> String {
+    fn get_cluster_all_host_infos(&self) -> Vec<String> {
 
-        let mut hosts: String = String::from("");
+        let mut hosts: Vec<String> = Vec::new();
 
         self.es_clients
             .iter() 
             .for_each(|es_client| {
-                hosts.push_str(&format!("{}\n", es_client.host));
+                hosts.push(es_client.host.clone());
             });
-
+        
         hosts
     }
 
@@ -354,9 +355,5 @@ impl EsRepository for EsRepositoryPub {
     fn get_cluster_index_pattern(&self) -> String {
         self.index_pattern.to_string()
     }
-
-
-    
-
-    
+        
 }

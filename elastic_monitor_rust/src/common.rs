@@ -67,3 +67,15 @@ pub use chrono::{
     DateTime,
     Utc
 };
+
+pub use lettre::{
+    Message, 
+    Transport,
+    transport::smtp::authentication::Credentials,
+    AsyncSmtpTransport,
+    AsyncTransport,
+    message::{  
+        MultiPart, 
+        SinglePart 
+    }
+};

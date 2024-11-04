@@ -11,6 +11,7 @@ History     : 2024-10-02 Seunghwan Shin       # [v.1.0.0] first create
                                                 1) 인덱스 삭제 알고리즘 제거
                                                 2) jvm young, old, survivor 지표 모니터링 대상 추가
               2024-10-23 Seunghwan Shin       # [v.1.4.0] Elasticsearch 지표 모니터링 대상 추가 
+              2024-11-04 Seunghwan Shin       # [v.1.5.0] Elasticsearch cluster 에 문제가 발생한 경우 이메일로도 알람을 받는 기능 추가.
 */ 
 
 mod common;
@@ -38,7 +39,7 @@ async fn main() {
     
     info!("Start Program");
 
-    // Elasticsearch DB 커넥션 정보
+    /* Elasticsearch DB 커넥션 정보 */ 
     let es_infos_vec: Vec<EsRepositoryPub> = match initialize_db_clients("./datas/server_info.json") {
         Ok(es_infos_vec) => es_infos_vec,
         Err(e) => {
@@ -47,9 +48,9 @@ async fn main() {
         }
     };
     
-    // Handler 의존주입
+    /* Handler 의존주입 */ 
     let mut handlers: Vec<MainHandler<MetricServicePub<EsRepositoryPub>>> = Vec::new();
-
+    
     for cluster in es_infos_vec {
         let metirc_service = MetricServicePub::new(cluster);
         let maind_handler = MainHandler::new(metirc_service);
@@ -59,7 +60,7 @@ async fn main() {
     
     loop {
 
-        // Async 작업
+        /* Async 작업 */ 
         let futures = handlers.iter().map(|handler| {
             async move {                
                 handler.task_set().await
@@ -79,6 +80,8 @@ async fn main() {
             }
         }   
         
+        info!("Pending Program...");
+
         //break;
         std::thread::sleep(Duration::from_secs(10)); //10초 마다 탐색 -> 무한루프가 돌고 있으므로.
     }

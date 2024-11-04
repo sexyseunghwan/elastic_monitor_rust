@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Index Deletion Notification</title>
+</head>
+<body style="font-family: 'Arial', sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px;">
+    <div style="background-color: #ffffff; width: 100%; max-width: 1100px; margin: 0 auto; padding: 30px; box-shadow: 0 0 10px rgba(0,0,0,0.1);border-radius:8px;">
+        <div style="text-align: center; padding-bottom: 20px;">
+            <img src="https://image.alba.kr/e/common/2024/Header_bi1.png" alt="Company Logo" style="width: 100px;">
+        </div>
+        <div style="font-size: 16px; color: #333;">
+            <h1>[Elasticsearch] ERROR Alert!</h1>
+            <p></p>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <th style="background-color: #f2f2f2; border: 1px solid #ddd; padding: 8px; text-align: left;">Cluster name</th>
+                    <th style="background-color: #f2f2f2; border: 1px solid #ddd; padding: 8px; text-align: left;">Error Subject</th>
+                    <th style="background-color: #f2f2f2; border: 1px solid #ddd; padding: 8px; text-align: left;">Host</th>
+                </tr>
+                {cluster_info}
+            </table>
+            <br/>
+            <br/>
+            <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                    <th style="background-color: #f2f2f2; border: 1px solid #ddd; padding: 8px; text-align: left;">Index name</th>
+                    <th style="background-color: #f2f2f2; border: 1px solid #ddd; padding: 8px; text-align: left;">Health</th>
+                    <th style="background-color: #f2f2f2; border: 1px solid #ddd; padding: 8px; text-align: left;">Status</th>
+                </tr>
+                {index_info}
+            </table>
+        </div>
+        <div style="font-size: 12px; text-align: center; margin-top: 20px; color: #999;">
+            <p>(주)미디어윌네트웍스</p>
+        </div>
+    </div>
+</body>
+</html>

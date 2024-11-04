@@ -16,7 +16,7 @@ impl<M: MetricService> MainHandler<M> {
         }
     }
     
-    #[doc="Task 세트"]
+    #[doc="작업 세트"]
     pub async fn task_set(&self) -> Result<(), anyhow::Error> {
         
         // 1. 클러스터의 각 노드의 연결 문제가 없는지 살핀다.
@@ -36,12 +36,12 @@ impl<M: MetricService> MainHandler<M> {
         let health_status = self.metirc_service.get_cluster_health_check().await?;
         
         if health_status == "RED" {
-            
+        //if health_status == "GREEN" {
+
             // 3. 클러스터의 상태가 Green이 아니라면 인덱스의 상태를 살핀다.
             self.metirc_service.get_cluster_unstable_index_infos(&health_status).await?;
-            
         } 
-
+        
         // ==== Pending Task 제외 ====
         // let health_status = self.metirc_service.get_cluster_health_check().await?;
         
