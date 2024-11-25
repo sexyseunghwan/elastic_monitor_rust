@@ -16,10 +16,10 @@ static SMTP_REPO: Lazy<Arc<SmtpRepositoryPub>> = Lazy::new(|| {
 #[doc = "smtp 통신 객체를 초기화해주는 함수"]
 pub fn initialize_smtp_clients() -> Arc<SmtpRepositoryPub> {
 
-    let smtp_info_path =  "./datas/smtp_info.json";
-    let email_receiver_info = "./datas/email_receiver_info.json";
+    let smtp_info_path =  "./config/smtp_info.toml";
+    let email_receiver_info = "./config/email_receiver_info.toml";
     
-    let smtp_info_json: SmtpJson = match read_json_from_file::<SmtpJson>(smtp_info_path) {
+    let smtp_info_json: SmtpJson = match read_toml_from_file::<SmtpJson>(smtp_info_path) {
         Ok(smtp_info_json) => smtp_info_json,
         Err(e) => {
             error!("[Error][initialize_smtp_clients()] Failed to object '{}': {:?}", smtp_info_path, e);
@@ -27,7 +27,7 @@ pub fn initialize_smtp_clients() -> Arc<SmtpRepositoryPub> {
         }
     };
     
-    let receiver_email_list: ReceiverEmailList =  match read_json_from_file::<ReceiverEmailList>(email_receiver_info) {
+    let receiver_email_list: ReceiverEmailList =  match read_toml_from_file::<ReceiverEmailList>(email_receiver_info) {
         Ok(receiver_email_list) => receiver_email_list,
         Err(e) => {
             error!("[Error][initialize_smtp_clients()] Failed to object '{}' {:?}", email_receiver_info, e);

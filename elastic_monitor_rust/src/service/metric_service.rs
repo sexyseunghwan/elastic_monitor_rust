@@ -1,6 +1,6 @@
 use crate::common::*;
 
-use crate::repository::smtp_repository::get_smtp_repo;
+
 use crate::utils_modules::time_utils::*;
 use crate::utils_modules::json_utils::*;
 use crate::utils_modules::calculate_utils::*;
@@ -137,7 +137,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 }
                 [..] => continue, /* 상태가 안정적인 경우는 무시 */ 
             }
-                        
+                      
             /* for test */ 
             // match stats.as_slice() {
             //     [health, status, index, ..] if *health == "green" || *status == "open" => {
@@ -210,6 +210,12 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
 
 
     #[doc = "GET /_nodes/stats 정보들을 핸들링 해주는 함수"]
+    /// # Arguments
+    /// * `metric_vec`          - Elasticsearch 수집 대상 지표 리스트
+    /// * `cur_utc_time_str`    - 현재시간 (문자열) 
+    /// 
+    /// # Returns
+    /// * Result<(), anyhow::Error>
     async fn get_nodes_stats_handle(&self, metric_vec: &mut Vec<MetricInfo>, cur_utc_time_str: &str) -> Result<(), anyhow::Error> {
 
         let query_feilds = ["host", "fs", "jvm", "indices", "os", "http"];
@@ -255,13 +261,11 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 let query_total: i64 = get_value_by_path(node_info, "indices.search.query_total")?;
                 let query_time_in_millis: i64 = get_value_by_path(node_info, "indices.search.query_time_in_millis")?;
                 let query_latency = query_time_in_millis as f64 / query_total as f64;
-                //get_decimal_round_conversion(query_time_in_millis as f64 / query_total as f64, 5)?;
                 
 
                 let fetch_total: i64 = get_value_by_path(node_info, "indices.search.fetch_total")?;
                 let fetch_time_in_millis: i64 = get_value_by_path(node_info, "indices.search.fetch_time_in_millis")?;
                 let fetch_latency = fetch_time_in_millis as f64 / fetch_total as f64;
-                //get_decimal_round_conversion(fetch_time_in_millis as f64 / fetch_total as f64, 5)?;
 
 
                 let metric_info = MetricInfo::new(

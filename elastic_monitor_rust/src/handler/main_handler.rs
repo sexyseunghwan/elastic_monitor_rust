@@ -19,7 +19,7 @@ impl<M: MetricService> MainHandler<M> {
     #[doc="작업 세트"]
     pub async fn task_set(&self) -> Result<(), anyhow::Error> {
         
-        // 1. 클러스터의 각 노드의 연결 문제가 없는지 살핀다.
+        /* 1. 클러스터의 각 노드의 연결 문제가 없는지 살핀다. */ 
         match self.metirc_service.get_cluster_node_check().await {  
             Ok(flag) => {
                 // 노드 연결에 문제가 있는 경우 -> 프로그램 중단.
@@ -32,13 +32,13 @@ impl<M: MetricService> MainHandler<M> {
             }
         }
         
-        // 2. 클러스터의 상태를 살핀다.
+        /* 2. 클러스터의 상태를 살핀다. */ 
         let health_status = self.metirc_service.get_cluster_health_check().await?;
         
         if health_status == "RED" {
         //if health_status == "GREEN" {
 
-            // 3. 클러스터의 상태가 Green이 아니라면 인덱스의 상태를 살핀다.
+            /* 3. 클러스터의 상태가 Green이 아니라면 인덱스의 상태를 살핀다. */ 
             self.metirc_service.get_cluster_unstable_index_infos(&health_status).await?;
         } 
         
@@ -57,7 +57,7 @@ impl<M: MetricService> MainHandler<M> {
         // }
         
         
-        // 4. Elasticsearch metric value 서버로 Post
+        /* 4. Elasticsearch metric value 서버로 Post */ 
         self.metirc_service.post_cluster_nodes_infos().await?;
 
         Ok(())

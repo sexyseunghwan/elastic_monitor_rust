@@ -4,11 +4,13 @@ use crate::utils_modules::io_utils::*;
 
 
 #[doc="Elasticsearch DB 초기화"]
-pub fn initialize_db_clients(es_info_path: &str) -> Result<Vec<EsRepositoryPub>, anyhow::Error> {
+/// # Returns
+/// * Result<Vec<EsRepositoryPub>, anyhow::Error> - 모니터링 할 대상 Elasticsearch 정보 list
+pub fn initialize_db_clients() -> Result<Vec<EsRepositoryPub>, anyhow::Error> {
 
     let mut elastic_conn_vec: Vec<EsRepositoryPub> = Vec::new();
     
-    let cluster_config: ClusterConfig = read_json_from_file::<ClusterConfig>(es_info_path)?;
+    let cluster_config: ClusterConfig = read_toml_from_file::<ClusterConfig>("./config/server_info.toml")?;
     
     for config in &cluster_config.clusters {
         
@@ -61,7 +63,17 @@ pub(crate) struct EsClient {
 
 impl EsRepositoryPub {
     
-    pub fn new(cluster_name: &str, hosts: Vec<String>, es_id: &str, es_pw: &str, index_pattern: &str) -> Result<Self, anyhow::Error> {
+    #[doc = "Elasticsearch connection 생성자"]
+    /// # Arguments
+    /// * `cluster_name`        - Elasticsearch Cluster 이름
+    /// * `hosts`               - Elasticsearch host 주소 벡터
+    /// * `es_id`               - Elasticsearch 계정정보 - 아이디
+    /// * `es_pw`               - Elasticsearch 계정정보 - 비밀번호
+    /// * `log_index_pattern`   - Elasticsearch 의 지표정보를 저장해줄 인덱스 패턴 이름 
+    /// 
+    /// # Returns
+    /// * Result<Self, anyhow::Error>
+    pub fn new(cluster_name: &str, hosts: Vec<String>, es_id: &str, es_pw: &str, log_index_pattern: &str) -> Result<Self, anyhow::Error> {
 
         let mut es_clients: Vec<Arc<EsClient>> = Vec::new();
         
@@ -80,11 +92,16 @@ impl EsRepositoryPub {
             es_clients.push(es_client);
         }
         
-        Ok(EsRepositoryPub{cluster_name: cluster_name.to_string(), es_clients, index_pattern: index_pattern.to_string()})
+        Ok(EsRepositoryPub{cluster_name: cluster_name.to_string(), es_clients, index_pattern: log_index_pattern.to_string()})
     }
     
     
     #[doc="Common logic: common node failure handling and node selection"]
+    /// # Arguments
+    /// * `operation` - 실행할 함수 trait
+    /// 
+    /// # Returns
+    /// * Result<Response, anyhow::Error>
     async fn execute_on_any_node<F, Fut>(&self, operation: F) -> Result<Response, anyhow::Error>
     where
         F: Fn(Arc<EsClient>) -> Fut + Send + Sync,
@@ -118,11 +135,15 @@ impl EsRepositoryPub {
 
 }
 
+
+
 #[async_trait]
 impl EsRepository for EsRepositoryPub {
     
     
     #[doc="Elasticsearch 클러스터 내부에 존재하는 인덱스들의 정보를 가져오는 함수"]
+    /// # Returns
+    /// * Result<String, anyhow::Error> - 클러스터 내에 존재하는 각 인덱스들의 이름 및 health 정보
     async fn get_indices_info(&self) -> Result<String, anyhow::Error> {
         
         let response = self.execute_on_any_node(|es_client| async move {
@@ -147,9 +168,9 @@ impl EsRepository for EsRepositoryPub {
             Err(anyhow!(error_message))
         } 
     }
+    
 
-
-    #[doc="Elasticsearch 클러스터의 헬스체크를 해주는 함수."]
+    #[doc="Elasticsearch 클러스터의 Health Check 해주는 함수."]
     async fn get_health_info(&self) -> Result<Value, anyhow::Error> {
         
         let response = self.execute_on_any_node(|es_client| async move { 
@@ -211,6 +232,8 @@ impl EsRepository for EsRepositoryPub {
     
     
     #[doc="Elasticsearch 각 노드들이 현재 문제 없이 통신이 되는지 체크해주는 함수."]
+    /// # Returns
+    /// * Vec<(String, bool)> - 
     async fn get_node_conn_check(&self) -> Vec<(String, bool)> {
 
         let futures = self.es_clients.iter().map(|es_obj| {
@@ -235,6 +258,11 @@ impl EsRepository for EsRepositoryPub {
     
     
     #[doc="클러스터 각 노드의 metric value 를 반환해주는 함수."]
+    /// # Arguments
+    /// * `fields` - 모니터링 대상이 되는 지표항목
+    /// 
+    /// # Returns
+    /// * Result<Value, anyhow::Error>
     async fn get_node_stats(&self, fields: &[&str]) -> Result<Value, anyhow::Error> {
         
         let response = self.execute_on_any_node(|es_client| async move { 
@@ -265,6 +293,11 @@ impl EsRepository for EsRepositoryPub {
     
     
     #[doc="GET /_cat/shards"]
+    /// # Arguments
+    /// * `fields` - 모니터링 대상이 되는 지표항목
+    /// 
+    /// # Returns
+    /// * Result<Value, anyhow::Error>
     async fn get_cat_shards(&self, fields: &[&str]) -> Result<String, anyhow::Error> {
 
         let response = self.execute_on_any_node(|es_client| async move { 
@@ -296,6 +329,12 @@ impl EsRepository for EsRepositoryPub {
 
 
     #[doc="특정 인덱스에 데이터를 insert 해주는 함수."]
+    /// # Arguments
+    /// * `index_name`  - 인덱스 이름
+    /// * `document`    - 색인할 내용
+    /// 
+    /// # Returns
+    /// * Result<(), anyhow::Error>
     async fn post_doc(&self, index_name: &str, document: Value) -> Result<(), anyhow::Error> {
 
         /* 클로저 내에서 사용할 복사본을 생성 */ 
@@ -333,7 +372,7 @@ impl EsRepository for EsRepositoryPub {
     fn get_cluster_name(&self) -> String {
         self.cluster_name().to_string()
     }
-
+    
     
     
     #[doc="Cluster 내의 모든 호스트들을 반환해주는 함수."]
@@ -349,7 +388,7 @@ impl EsRepository for EsRepositoryPub {
         
         hosts
     }
-
+    
     
     #[doc="Cluster 정보를 맵핑해줄 index pattern 형식을 반환."]
     fn get_cluster_index_pattern(&self) -> String {

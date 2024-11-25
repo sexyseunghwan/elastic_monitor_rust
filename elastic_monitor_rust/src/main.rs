@@ -12,6 +12,8 @@ History     : 2024-10-02 Seunghwan Shin       # [v.1.0.0] first create
                                                 2) jvm young, old, survivor 지표 모니터링 대상 추가
               2024-10-23 Seunghwan Shin       # [v.1.4.0] Elasticsearch 지표 모니터링 대상 추가 
               2024-11-04 Seunghwan Shin       # [v.1.5.0] Elasticsearch cluster 에 문제가 발생한 경우 이메일로도 알람을 받는 기능 추가.
+              2024-11-25 Seunghwan Shin       # 1) [v.1.5.1] 설정 json 파일을 toml 파일로 전환
+                                              # 2) comment(주석) 정리  
 */ 
 
 mod common;
@@ -30,6 +32,8 @@ mod model;
 mod repository;
 use repository::es_repository::*;
 
+mod configs;
+
 
 #[tokio::main]
 async fn main() { 
@@ -40,7 +44,7 @@ async fn main() {
     info!("Start Program");
 
     /* Elasticsearch DB 커넥션 정보 */ 
-    let es_infos_vec: Vec<EsRepositoryPub> = match initialize_db_clients("./datas/server_info.json") {
+    let es_infos_vec: Vec<EsRepositoryPub> = match initialize_db_clients() {
         Ok(es_infos_vec) => es_infos_vec,
         Err(e) => {
             error!("[Error][main()] Cannot find json file: {:?}", e);
@@ -63,7 +67,7 @@ async fn main() {
         /* Async 작업 */ 
         let futures = handlers.iter().map(|handler| {
             async move {                
-                handler.task_set().await
+                handler.task_set().await /* 실제 Task */
             }
         });
         
@@ -80,9 +84,8 @@ async fn main() {
             }
         }   
         
+        break; /* Test code */
         info!("Pending Program...");
-
-        //break;
-        std::thread::sleep(Duration::from_secs(10)); //10초 마다 탐색 -> 무한루프가 돌고 있으므로.
+        //std::thread::sleep(Duration::from_secs(10)); /* 10초 마다 탐색 -> 무한루프가 돌고 있으므로. */
     }
 }

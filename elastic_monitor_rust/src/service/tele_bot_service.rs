@@ -13,8 +13,9 @@ static TELEGRAM_SERVICE: Lazy<Arc<TelebotServicePub>> = Lazy::new(|| {
 */
 pub fn initialize_tele_bot_client() -> Arc<TelebotServicePub> {
 
-    let tele_info_path = "./datas/tele_info.json";
-    let tele_bot: TelebotServicePub = match read_json_from_file::<TelebotServicePub>(tele_info_path) {
+    //let tele_info_path = "./datas/tele_info.json";
+    let tele_info_path = "./config/tele_info.toml";
+    let tele_bot: TelebotServicePub = match read_toml_from_file::<TelebotServicePub>(tele_info_path) {
         Ok(tele_bot) => tele_bot,
         Err(e) => {
             error!("[Error][initialize_tele_bot_client()] cannot read '{}' : {:?}", tele_info_path, e);
