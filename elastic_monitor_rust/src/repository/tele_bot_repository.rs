@@ -2,19 +2,17 @@ use crate::common::*;
 
 use crate::model::Config::*;
 
-
 // 전역 Telebot 인스턴스를 선언
 static TELEGRAM_REPO: once_lazy<Arc<TelebotRepositoryPub>> =
     once_lazy::new(|| initialize_tele_bot_client());
 
-
 #[doc = "Telebot 을 전역적으로 초기화 함."]
 pub fn initialize_tele_bot_client() -> Arc<TelebotRepositoryPub> {
-
     let tele_info_config = get_telegram_config_info();
     let tele_repo = TelebotRepositoryPub::new(
-        tele_info_config.bot_token().to_string(), 
-        tele_info_config.chat_room_id().to_string());
+        tele_info_config.bot_token().to_string(),
+        tele_info_config.chat_room_id().to_string(),
+    );
 
     Arc::new(tele_repo)
 }
@@ -44,7 +42,6 @@ pub struct TelebotRepositoryPub {
 
 #[async_trait]
 impl TelebotRepository for TelebotRepositoryPub {
-    
     #[doc = "Telegram bot 이 메시지를 보내주는 기능 -> 3번 실패 시 에러발생"]
     async fn bot_send(&self, send_msg: &str) -> Result<(), anyhow::Error> {
         let url = format!("https://api.telegram.org/bot{}/sendMessage", self.bot_token);
@@ -53,7 +50,7 @@ impl TelebotRepository for TelebotRepositoryPub {
             "chat_id": self.chat_room_id,
             "text": send_msg
         });
-        
+
         let client = reqwest::Client::new();
 
         // 최대 3번의 시도를 수행

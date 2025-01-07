@@ -27,13 +27,13 @@ impl MessageFormatter for MessageFormatterNode {
         let mut msg_contents: String = String::new();
         msg_contents.push_str(format!("==== Error Alert [{}] ====\n", self.cluster_name).as_str());
         msg_contents.push_str(format!("[cluster name]\n{}\n\n", self.cluster_name).as_str());
-        
+
         msg_contents.push_str(format!("[err_subject]\n{}\n\n", self.err_subject).as_str());
         msg_contents.push_str(format!("[err_detail]\n{}\n\n", self.err_detail).as_str());
-        
+
         let host_str = self.host.join("\n");
         msg_contents.push_str(format!("[host]\n{}\n\n", host_str).as_str());
-        
+
         msg_contents
     }
 
@@ -91,13 +91,13 @@ impl MessageFormatter for MessageFormatterIndex {
         msg_contents.push_str(format!("[cluster name]\n{}\n\n", self.cluster_name).as_str());
         msg_contents.push_str(format!("[err_subject]\n{}\n\n", self.err_subject).as_str());
         //msg_contents.push_str(format!("[err_detail]\n{}\n\n", err_detailed).as_str());
-        
+
         let host_str = self.host.join("\n");
         msg_contents.push_str(format!("[host]\n{}\n\n", host_str).as_str());
 
         msg_contents
     }
-    
+
     #[doc = "Email 형식에 맞게 변환"]
     fn get_email_format(&self) -> HtmlContents {
         let mut html_form_map: HashMap<String, String> = HashMap::new();

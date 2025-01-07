@@ -12,7 +12,6 @@ static SMTP_REPO: once_lazy<Arc<SmtpRepositoryPub>> = once_lazy::new(|| initiali
 
 #[doc = "smtp 통신 객체를 초기화해주는 함수"]
 pub fn initialize_smtp_clients() -> Arc<SmtpRepositoryPub> {
-    
     let smtp_config: Arc<SmtpConfig> = get_smtp_config_info();
     let email_receiver_info = "./config/email_receiver_info.toml";
 
@@ -27,7 +26,7 @@ pub fn initialize_smtp_clients() -> Arc<SmtpRepositoryPub> {
                 panic!("{:?}", e)
             }
         };
-    
+
     Arc::new(SmtpRepositoryPub::new(
         smtp_config.smtp_name().to_string(),
         smtp_config.credential_id().to_string(),

@@ -52,11 +52,10 @@ impl<R: EsRepository> MetricServicePub<R> {
 
 #[async_trait]
 impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
-    
     #[doc = "문제가 발생했을 때 알람을 보내주는 함수."]
     /// # Arguments
     /// * `msg_fmt` - 메시지 포멧터 트레잇
-    /// 
+    ///
     /// # Returns
     /// * Result<(), anyhow::Error>
     async fn send_alarm_infos<T: MessageFormatter + Sync + Send>(
@@ -75,7 +74,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
 
         Ok(())
     }
-    
+
     #[doc = "Elasticsearch 클러스터 내의 각 노드의 상태를 체크해주는 함수"]
     async fn get_cluster_node_check(&self) -> Result<(), anyhow::Error> {
         /* Vec<(host 주소, 연결 유무)> */
@@ -150,13 +149,16 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
             /* for test */
             match stats.as_slice() {
                 [health, status, index, ..] if *health == "green" || *status == "open" => {
-                    err_index_detail.push(Indicies::new(index.to_string(), health.to_string().to_uppercase(), status.to_string().to_uppercase()));
-
+                    err_index_detail.push(Indicies::new(
+                        index.to_string(),
+                        health.to_string().to_uppercase(),
+                        status.to_string().to_uppercase(),
+                    ));
                 }
                 [..] => continue, /* 상태가 안정적인 경우는 무시 */
             }
         }
-        
+
         err_index_detail.sort_by(|a, b| a.index_name.cmp(&b.index_name));
 
         let msg_fmt = MessageFormatterIndex::new(
@@ -172,10 +174,10 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         self.send_alarm_infos(&msg_fmt).await?;
 
         //info!("wow: {:?}", msg_fmt);
-        
+
         Ok(())
     }
-    
+
     #[doc = "GET /_nodes/stats 정보들을 핸들링 해주는 함수"]
     /// # Arguments
     /// * `metric_vec`          - Elasticsearch 수집 대상 지표 리스트
