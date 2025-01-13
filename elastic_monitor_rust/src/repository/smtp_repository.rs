@@ -35,7 +35,7 @@ pub fn initialize_smtp_clients() -> Arc<SmtpRepositoryPub> {
     ))
 }
 
-#[doc = "TelebotService 를 Thread-safe 하게 이용하는 함수."]
+#[doc = "SMTP를 Thread-safe 하게 이용하는 함수."]
 pub fn get_smtp_repo() -> Arc<SmtpRepositoryPub> {
     Arc::clone(&SMTP_REPO)
 }

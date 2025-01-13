@@ -77,7 +77,14 @@ impl EsRepositoryPub {
         let mut es_clients: Vec<Arc<EsClient>> = Vec::new();
 
         for url in hosts {
-            let parse_url = format!("http://{}:{}@{}", es_id, es_pw, url);
+            
+            let parse_url: String = if es_id == "" && es_pw == "" {
+                format!("http://{}", url)
+            } else {
+                format!("http://{}:{}@{}", es_id, es_pw, url)
+            };
+            
+            //let parse_url = format!("http://{}:{}@{}", es_id, es_pw, url);
 
             let es_url = Url::parse(&parse_url)?;
             let conn_pool = SingleNodeConnectionPool::new(es_url);
