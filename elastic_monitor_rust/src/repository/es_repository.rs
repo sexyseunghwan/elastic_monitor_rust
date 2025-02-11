@@ -22,7 +22,7 @@ pub fn initialize_db_clients() -> Result<Vec<EsRepositoryPub>, anyhow::Error> {
             &config.es_pw,
             &config.index_pattern,
         )?;
-
+        
         elastic_conn_vec.push(es_helper);
     }
 

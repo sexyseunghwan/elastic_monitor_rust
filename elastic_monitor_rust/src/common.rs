@@ -1,12 +1,7 @@
 pub use std::{
-    collections::HashMap,
-    env,
-    fs::File,
-    future::Future,
-    io::BufReader,
-    io::Write,
-    str::{FromStr, Lines},
-    sync::Arc,
+    collections::HashMap, fs::File, future::Future, io::BufReader, io::Write, str::{FromStr, Lines},
+    sync::Arc, env,
+    thread::sleep as std_sleep
 };
 
 pub use tokio::{time::sleep, time::Duration};
@@ -27,7 +22,7 @@ pub use elasticsearch::{
     cat::{CatIndicesParts, CatShardsParts},
     cluster::ClusterHealthParts,
     http::response::Response,
-    http::transport::{SingleNodeConnectionPool, Transport as EsTransport, TransportBuilder},
+    http::transport::{SingleNodeConnectionPool, TransportBuilder, Transport as EsTransport},
     http::Url,
     nodes::NodesStatsParts,
     Elasticsearch, IndexParts,

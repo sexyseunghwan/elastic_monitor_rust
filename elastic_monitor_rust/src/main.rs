@@ -106,10 +106,11 @@ async fn main() {
         }
 
         if use_case == "dev" {
+            info!("Exit Program");
             break; /* Test code */
         }
 
         info!("Pending Program...");
-        std::thread::sleep(Duration::from_secs(10)); /* 10초 마다 탐색 -> 무한루프가 돌고 있으므로. */
+        std_sleep(Duration::from_secs(10)); /* 10초 마다 탐색 -> 무한루프가 돌고 있으므로. */
     }
 }

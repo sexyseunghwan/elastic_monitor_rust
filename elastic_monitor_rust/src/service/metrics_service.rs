@@ -149,9 +149,9 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
             let is_unstable: bool = match use_case {
                 "dev" => *health == "green" || *status == "open",
                 "prod" => *health != "green" || *status != "open",
-                _ => return Err(anyhow!("[Error][get_cluster_unstable_index_infos()] Please specify a valid environment (dev/prod).")),
+                _ => false,
             };
-
+            
             if is_unstable {
                 err_index_detail.push(Indicies::new(
                     index.to_string(),
@@ -160,7 +160,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 ));
             }
         }
-
+        
         err_index_detail.sort_by(|a, b| a.index_name.cmp(&b.index_name));
 
         let msg_fmt: MessageFormatterIndex = MessageFormatterIndex::new(
@@ -317,6 +317,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
 
     #[doc = "각 cluster node 들의 정보를 elasticsearch 에 적재하는 함수"]
     async fn post_cluster_nodes_infos(&self) -> Result<(), anyhow::Error> {
+        
         /* 지표를 저장해줄 인스턴스 벡터. */
         let mut metric_vec: Vec<MetricInfo> = Vec::new();
 
