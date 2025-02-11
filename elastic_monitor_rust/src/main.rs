@@ -15,10 +15,13 @@ History     : 2024-10-02 Seunghwan Shin       # [v.1.0.0] first create
               2024-11-25 Seunghwan Shin       # 1) [v.1.5.1] 설정 json 파일을 toml 파일로 전환
                                               # 2) comment(주석) 정리
               2024-12-04 Seunghwan Shin       # [v.1.6.0] 특정 노드에 연결이 끊기더라도 나머지 노드의 메트릭은 수집하도록 소스 변경
-              2025-00-00 Seunghwan Shin       # [v.1.7.0]
+              2025-01-28 Seunghwan Shin       # [v.1.7.0]
                                                 1) config 파일 통일 작업
                                                 2) Telebot service -> repository 로 바꿈.
                                                 3) Tele bot -> Message too long 에러 해결
+              2025-02-12 Seunghwan Shin       # [v.1.8.0]
+                                                1) 하드코딩 되어있는 경로들을 모둔 .env 파일로 빼서 컴파일 없이도 수정될 수 있도록 코드 변경
+                                                2) reqwest::client 를 전역적으로 사용하도록 코두 수정
 */
 
 mod common;
@@ -31,11 +34,16 @@ mod utils_modules;
 use utils_modules::logger_utils::*;
 
 mod service;
-use service::metric_service::*;
+use service::metrics_service::*;
 
 mod model;
+use model::use_case_config::*;
+use model::Config::*;
+
 mod repository;
 use repository::es_repository::*;
+
+mod env_configuration;
 
 #[tokio::main]
 async fn main() {
@@ -63,10 +71,15 @@ async fn main() {
     let mut handlers: Vec<MainHandler<MetricServicePub<EsRepositoryPub>>> = Vec::new();
 
     for cluster in es_infos_vec {
-        let metirc_service = MetricServicePub::new(cluster);
-        let main_handler = MainHandler::new(metirc_service);
+        let metirc_service: MetricServicePub<EsRepositoryPub> = MetricServicePub::new(cluster);
+        let main_handler: MainHandler<MetricServicePub<EsRepositoryPub>> =
+            MainHandler::new(metirc_service);
         handlers.push(main_handler);
     }
+
+    /* 실행환경에 따라 분류 */
+    let use_case_binding: Arc<UseCaseConfig> = get_usecase_config_info();
+    let use_case: &str = use_case_binding.use_case().as_str();
 
     /*
         Loop 처리를 통해서 계속 Metric 정보 수집.
@@ -79,7 +92,7 @@ async fn main() {
             }
         });
 
-        let results = join_all(futures).await;
+        let results: Vec<std::result::Result<(), anyhow::Error>> = join_all(futures).await;
 
         for result in results {
             match result {
@@ -92,7 +105,10 @@ async fn main() {
             }
         }
 
-        //break; /* Test code */
+        if use_case == "dev" {
+            break; /* Test code */
+        }
+
         info!("Pending Program...");
         std::thread::sleep(Duration::from_secs(10)); /* 10초 마다 탐색 -> 무한루프가 돌고 있으므로. */
     }

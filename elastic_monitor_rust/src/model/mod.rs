@@ -9,3 +9,4 @@ pub mod ReceiverEmail;
 pub mod ReceiverEmailList;
 pub mod SmtpConfig;
 pub mod TelegramConfig;
+pub mod use_case_config;

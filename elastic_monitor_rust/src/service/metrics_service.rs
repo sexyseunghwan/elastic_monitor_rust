@@ -4,6 +4,8 @@ use crate::utils_modules::calculate_utils::*;
 use crate::utils_modules::json_utils::*;
 use crate::utils_modules::time_utils::*;
 
+use crate::model::use_case_config::*;
+use crate::model::Config::*;
 use crate::model::Indicies::*;
 use crate::model::MessageFormatter::*;
 use crate::model::MetricInfo::*;
@@ -45,7 +47,7 @@ pub struct MetricServicePub<R: EsRepository> {
 
 impl<R: EsRepository> MetricServicePub<R> {
     pub fn new(elastic_obj: R) -> Self {
-        let metric_service = MetricServicePub { elastic_obj };
+        let metric_service: MetricServicePub<R> = MetricServicePub { elastic_obj };
         metric_service
     }
 }
@@ -94,7 +96,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
             .collect();
 
         if !conn_fail_hosts.is_empty() {
-            let msg_fmt = MessageFormatterNode::new(
+            let msg_fmt: MessageFormatterNode = MessageFormatterNode::new(
                 self.elastic_obj.get_cluster_name(),
                 conn_fail_hosts,
                 String::from("Elasticsearch Connection Failed"),
@@ -112,7 +114,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         /* 클러스터 상태 체크 */
         let cluster_status_json: Value = self.elastic_obj.get_health_info().await?;
 
-        let cluster_status = cluster_status_json.get("status")
+        let cluster_status: String = cluster_status_json.get("status")
             .and_then(Value::as_str)
             .ok_or_else(|| anyhow!("[Parsing Error][get_cluster_state()] 'status' field is missing in cluster_status_json"))?
             .to_uppercase();
@@ -120,13 +122,17 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         Ok(cluster_status)
     }
 
-    #[doc = "불안정한 인덱스들을 추출하는 함수"]
+    #[doc = "Elasticsearch Cluster Health 가 불안정한 경우 - 불안정한 인덱스들을 추출하는 함수"]
     async fn get_cluster_unstable_index_infos(
         &self,
         cluster_status: &str,
     ) -> Result<(), anyhow::Error> {
-        let cluster_stat_resp = self.elastic_obj.get_indices_info().await?;
-        let unstable_indicies = cluster_stat_resp.trim().lines();
+        let cluster_stat_resp: String = self.elastic_obj.get_indices_info().await?;
+        let unstable_indicies: Lines<'_> = cluster_stat_resp.trim().lines();
+
+        /* 현재 프로그램 실행환경 구분 */
+        let use_case_binding: Arc<UseCaseConfig> = get_usecase_config_info();
+        let use_case: &str = use_case_binding.use_case().as_str();
 
         /* 인덱스 상태 확인 및 벡터 생성 */
         let mut err_index_detail: Vec<Indicies> = Vec::new();
@@ -134,34 +140,30 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         for index in unstable_indicies {
             let stats: Vec<&str> = index.split_whitespace().collect();
 
-            /* for prod */
-            // match stats.as_slice() {
-            //     [health, status, index, ..] if *health != "green" || *status != "open" => {
-            //         err_index_detail.push(Indicies::new(
-            //             index.to_string(),
-            //             health.to_string().to_uppercase(),
-            //             status.to_string().to_uppercase(),
-            //         ));
-            //     }
-            //     [..] => continue, /* 상태가 안정적인 경우는 무시 */
-            // }
+            let (health, status, index) = match stats.as_slice() {
+                [health, status, index, ..] => (health, status, index),
+                _ => continue,
+            };
 
-            /* for test */
-            match stats.as_slice() {
-                [health, status, index, ..] if *health == "green" || *status == "open" => {
-                    err_index_detail.push(Indicies::new(
-                        index.to_string(),
-                        health.to_string().to_uppercase(),
-                        status.to_string().to_uppercase(),
-                    ));
-                }
-                [..] => continue, /* 상태가 안정적인 경우는 무시 */
+            /* 개발환경, 운영환경 코드 구분 */
+            let is_unstable: bool = match use_case {
+                "dev" => *health == "green" || *status == "open",
+                "prod" => *health != "green" || *status != "open",
+                _ => return Err(anyhow!("[Error][get_cluster_unstable_index_infos()] Please specify a valid environment (dev/prod).")),
+            };
+
+            if is_unstable {
+                err_index_detail.push(Indicies::new(
+                    index.to_string(),
+                    health.to_uppercase(),
+                    status.to_uppercase(),
+                ));
             }
         }
 
         err_index_detail.sort_by(|a, b| a.index_name.cmp(&b.index_name));
 
-        let msg_fmt = MessageFormatterIndex::new(
+        let msg_fmt: MessageFormatterIndex = MessageFormatterIndex::new(
             self.elastic_obj.get_cluster_name(),
             self.elastic_obj.get_cluster_all_host_infos(),
             String::from(format!(
@@ -172,8 +174,6 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         );
 
         self.send_alarm_infos(&msg_fmt).await?;
-
-        //info!("wow: {:?}", msg_fmt);
 
         Ok(())
     }
@@ -190,7 +190,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         metric_vec: &mut Vec<MetricInfo>,
         cur_utc_time_str: &str,
     ) -> Result<(), anyhow::Error> {
-        let query_feilds = ["host", "fs", "jvm", "indices", "os", "http"];
+        let query_feilds: [&str; 6] = ["host", "fs", "jvm", "indices", "os", "http"];
 
         /* GET /_nodes/stats */
         let get_nodes_stats: Value = self.elastic_obj.get_node_stats(&query_feilds).await?;
@@ -204,7 +204,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 let disk_total: i64 = get_value_by_path(node_info, "fs.total.total_in_bytes")?;
                 let disk_available: i64 =
                     get_value_by_path(node_info, "fs.total.available_in_bytes")?;
-                let disk_usage =
+                let disk_usage: f64 =
                     get_percentage_round_conversion(disk_total - disk_available, disk_total, 2)?;
 
                 let jvm_young_usage: i64 =
@@ -218,7 +218,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                     get_value_by_path(node_info, "indices.query_cache.total_count")?;
                 let query_cache_hit_cnt: i64 =
                     get_value_by_path(node_info, "indices.query_cache.hit_count")?;
-                let query_cache_hit =
+                let query_cache_hit: f64 =
                     get_percentage_round_conversion(query_cache_hit_cnt, query_cache_total_cnt, 2)?;
                 let cache_memory_size: i64 =
                     get_value_by_path(node_info, "indices.query_cache.memory_size_in_bytes")?;
@@ -227,7 +227,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                     get_value_by_path(node_info, "os.swap.total_in_bytes")?;
                 let os_swap_used_in_bytes: i64 =
                     get_value_by_path(node_info, "os.swap.used_in_bytes")?;
-                let os_swap_usage = get_percentage_round_conversion(
+                let os_swap_usage: f64 = get_percentage_round_conversion(
                     os_swap_used_in_bytes,
                     os_swap_total_in_bytes,
                     2,
@@ -239,7 +239,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                     get_value_by_path(node_info, "indices.indexing.index_total")?;
                 let index_time_in_millis: i64 =
                     get_value_by_path(node_info, "indices.indexing.index_time_in_millis")?;
-                let indexing_latency = get_decimal_round_conversion(
+                let indexing_latency: f64 = get_decimal_round_conversion(
                     index_time_in_millis as f64 / indexing_total as f64,
                     5,
                 )?;
@@ -247,14 +247,14 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 let query_total: i64 = get_value_by_path(node_info, "indices.search.query_total")?;
                 let query_time_in_millis: i64 =
                     get_value_by_path(node_info, "indices.search.query_time_in_millis")?;
-                let query_latency = query_time_in_millis as f64 / query_total as f64;
+                let query_latency: f64 = query_time_in_millis as f64 / query_total as f64;
 
                 let fetch_total: i64 = get_value_by_path(node_info, "indices.search.fetch_total")?;
                 let fetch_time_in_millis: i64 =
                     get_value_by_path(node_info, "indices.search.fetch_time_in_millis")?;
-                let fetch_latency = fetch_time_in_millis as f64 / fetch_total as f64;
+                let fetch_latency: f64 = fetch_time_in_millis as f64 / fetch_total as f64;
 
-                let metric_info = MetricInfo::new(
+                let metric_info: MetricInfo = MetricInfo::new(
                     cur_utc_time_str.to_string(),
                     host.to_string(),
                     jvm_usage,
@@ -286,7 +286,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         &self,
         metric_vec: &mut Vec<MetricInfo>,
     ) -> Result<(), anyhow::Error> {
-        let query_feilds = ["ip"];
+        let query_feilds: [&str; 1] = ["ip"];
 
         /* GET /_nodes/stats */
         let get_cat_shards: String = self.elastic_obj.get_cat_shards(&query_feilds).await?;
@@ -306,8 +306,8 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         }
 
         for metric_info in metric_vec {
-            let host_ip = metric_info.host().clone();
-            let shard_cnt = host_map.entry(host_ip).or_insert(0);
+            let host_ip: String = metric_info.host().clone();
+            let shard_cnt: &mut i64 = host_map.entry(host_ip).or_insert(0);
 
             metric_info.node_shard_cnt = shard_cnt.clone();
         }
@@ -320,12 +320,13 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         /* 지표를 저장해줄 인스턴스 벡터. */
         let mut metric_vec: Vec<MetricInfo> = Vec::new();
 
-        let cur_utc_time = get_currnet_utc_naivedatetime();
-        let cur_utc_time_str = get_str_from_naivedatetime(cur_utc_time, "%Y-%m-%dT%H:%M:%SZ")?;
+        let cur_utc_time: NaiveDateTime = get_currnet_utc_naivedatetime();
+        let cur_utc_time_str: String =
+            get_str_from_naivedatetime(cur_utc_time, "%Y-%m-%dT%H:%M:%SZ")?;
 
         /* 날짜 기준으로 인덱스 이름 맵핑 */
-        let index_pattern = self.elastic_obj.get_cluster_index_pattern();
-        let index_name = format!(
+        let index_pattern: String = self.elastic_obj.get_cluster_index_pattern();
+        let index_name: String = format!(
             "{}{}",
             index_pattern,
             get_str_from_naivedatetime(cur_utc_time, "%Y%m%d")?

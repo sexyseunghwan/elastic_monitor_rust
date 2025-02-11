@@ -1,5 +1,11 @@
 pub use std::{
-    collections::HashMap, fs::File, future::Future, io::BufReader, io::Write, str::FromStr,
+    collections::HashMap,
+    env,
+    fs::File,
+    future::Future,
+    io::BufReader,
+    io::Write,
+    str::{FromStr, Lines},
     sync::Arc,
 };
 
@@ -13,11 +19,15 @@ pub use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub use serde_json::{from_reader, Value};
 
+pub use dotenv::dotenv;
+
+pub use reqwest::Client;
+
 pub use elasticsearch::{
     cat::{CatIndicesParts, CatShardsParts},
     cluster::ClusterHealthParts,
     http::response::Response,
-    http::transport::{SingleNodeConnectionPool, TransportBuilder},
+    http::transport::{SingleNodeConnectionPool, Transport as EsTransport, TransportBuilder},
     http::Url,
     nodes::NodesStatsParts,
     Elasticsearch, IndexParts,
