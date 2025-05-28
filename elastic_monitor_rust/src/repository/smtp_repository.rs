@@ -1,10 +1,10 @@
 use crate::common::*;
 
-use crate::model::Config::*;
-use crate::model::MessageFormatter::*;
-use crate::model::ReceiverEmail::*;
-use crate::model::ReceiverEmailList::*;
-use crate::model::SmtpConfig::*;
+use crate::model::config::*;
+use crate::model::message_formatter::*;
+use crate::model::receiver_email::*;
+use crate::model::receiver_email_list::*;
+use crate::model::smtp_config::*;
 
 use crate::utils_modules::io_utils::*;
 

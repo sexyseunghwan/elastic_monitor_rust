@@ -20,4 +20,11 @@ pub struct MetricInfo {
     pub indexing_latency: f64,
     pub query_latency: f64,
     pub fetch_latency: f64,
+    pub translog_operation: i64,
+    pub translog_operation_size: i64,
+    pub translog_uncommited_operation: i64,
+    pub translog_uncommited_operation_size: i64,
+    pub flush_total: i64,
+    pub refresh_total: i64,
+    pub refresh_listener: i64,
 }

@@ -1,6 +1,6 @@
 use crate::common::*;
 
-use crate::model::Indicies::*;
+use crate::model::indicies::*;
 
 use crate::env_configuration::env_config::*;
 
@@ -63,8 +63,7 @@ impl MessageFormatter for MessageFormatterNode {
         }
 
         let mut html_form_map: HashMap<String, String> = HashMap::new();
-        html_form_map.insert("cluster_info".to_string(), html_forms);   
-
+        html_form_map.insert("cluster_info".to_string(), html_forms);
 
         let html_format: &once_lazy<String> = &HTML_TEMPLATE_PATH;
         let html_contents: HtmlContents = HtmlContents::new(html_form_map, html_format.to_string());
@@ -153,7 +152,8 @@ impl MessageFormatter for MessageFormatterIndex {
 
         html_form_map.insert("index_info".to_string(), index_html_form);
 
-        let html_contents: HtmlContents = HtmlContents::new(html_form_map, "./html/detail_info.html".to_string());
+        let html_contents: HtmlContents =
+            HtmlContents::new(html_form_map, "./html/detail_info.html".to_string());
 
         html_contents
     }

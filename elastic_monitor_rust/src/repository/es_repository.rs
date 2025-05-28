@@ -1,6 +1,6 @@
 use crate::common::*;
 
-use crate::model::ClusterConfig::*;
+use crate::model::cluster_config::*;
 
 use crate::utils_modules::io_utils::*;
 
@@ -21,8 +21,9 @@ pub fn initialize_db_clients() -> Result<Vec<EsRepositoryPub>, anyhow::Error> {
             &config.es_id,
             &config.es_pw,
             &config.index_pattern,
+            &config.per_index_pattern,
         )?;
-        
+
         elastic_conn_vec.push(es_helper);
     }
 
@@ -36,6 +37,7 @@ pub trait EsRepository {
     async fn get_pendging_tasks(&self) -> Result<Value, anyhow::Error>;
     async fn get_node_conn_check(&self) -> Vec<(String, bool)>;
     async fn get_node_stats(&self, fields: &[&str]) -> Result<Value, anyhow::Error>;
+    async fn get_specific_index_info(&self, index_name: &str) -> Result<Value, anyhow::Error>;
 
     async fn get_cat_shards(&self, fields: &[&str]) -> Result<String, anyhow::Error>;
     async fn post_doc(&self, index_name: &str, document: Value) -> Result<(), anyhow::Error>;
@@ -43,6 +45,7 @@ pub trait EsRepository {
     fn get_cluster_name(&self) -> String;
     fn get_cluster_all_host_infos(&self) -> Vec<String>;
     fn get_cluster_index_pattern(&self) -> String;
+    fn get_cluster_index_monitoring_patten(&self) -> String;
 }
 
 #[derive(Debug, Getters, Clone)]
@@ -51,6 +54,7 @@ pub struct EsRepositoryPub {
     pub cluster_name: String,
     pub es_clients: Vec<Arc<EsClient>>,
     pub index_pattern: String,
+    pub per_index_pattern: String,
 }
 
 #[derive(Debug, Getters, Clone, new)]
@@ -67,6 +71,7 @@ impl EsRepositoryPub {
     /// * `es_id`               - Elasticsearch 계정정보 - 아이디
     /// * `es_pw`               - Elasticsearch 계정정보 - 비밀번호
     /// * `log_index_pattern`   - Elasticsearch 의 지표정보를 저장해줄 인덱스 패턴 이름
+    /// * `per_index_pattern`   - Elasitcsearch 의 각 인덱스 지표를 저장해줄 인덱스 패턴 이름
     ///
     /// # Returns
     /// * Result<Self, anyhow::Error>
@@ -76,6 +81,7 @@ impl EsRepositoryPub {
         es_id: &str,
         es_pw: &str,
         log_index_pattern: &str,
+        per_index_pattern: &str,
     ) -> Result<Self, anyhow::Error> {
         let mut es_clients: Vec<Arc<EsClient>> = Vec::new();
 
@@ -101,6 +107,7 @@ impl EsRepositoryPub {
             cluster_name: cluster_name.to_string(),
             es_clients,
             index_pattern: log_index_pattern.to_string(),
+            per_index_pattern: per_index_pattern.to_string(),
         })
     }
 
@@ -251,18 +258,22 @@ impl EsRepository for EsRepositoryPub {
     /// # Returns
     /// * Result<Value, anyhow::Error>
     async fn get_node_stats(&self, fields: &[&str]) -> Result<Value, anyhow::Error> {
-        let response: Response = self
-            .execute_on_any_node(|es_client| async move {
-                /* _nodes/stats 요청 */
-                let response: Response = es_client
-                    .es_conn
-                    .nodes()
-                    .stats(NodesStatsParts::None)
-                    .fields(fields)
-                    .send()
-                    .await?;
+        let stats_parts: NodesStatsParts<'_> = if fields.is_empty() {
+            NodesStatsParts::None
+        } else {
+            NodesStatsParts::Metric(fields)
+        };
 
-                Ok(response)
+        let response: Response = self
+            .execute_on_any_node(|es_client| {
+                let stats_parts = stats_parts.clone();
+                async move {
+                    /* _nodes/stats 요청 */
+                    let response: Response =
+                        es_client.es_conn.nodes().stats(stats_parts).send().await?;
+
+                    Ok(response)
+                }
             })
             .await?;
 
@@ -272,6 +283,38 @@ impl EsRepository for EsRepositoryPub {
         } else {
             let error_message: String = format!(
                 "[Elasticsearch Error][get_node_stats()] Failed to GET document: Status Code: {}",
+                response.status_code()
+            );
+            Err(anyhow!(error_message))
+        }
+    }
+
+    #[doc = "특정 인덱스의 stats 정보를 쿼리해주는 함수"]
+    /// # Arguments
+    /// * `index_name` - 인덱스 이름
+    ///
+    /// # Returns
+    /// * Result<Value, anyhow::Error>
+    async fn get_specific_index_info(&self, index_name: &str) -> Result<Value, anyhow::Error> {
+        let response: Response = self
+            .execute_on_any_node(|es_client| async move {
+                let response: Response = es_client
+                    .es_conn
+                    .indices()
+                    .stats(IndicesStatsParts::Index(&[index_name]))
+                    .send()
+                    .await?;
+
+                Ok(response)
+            })
+            .await?;
+            
+        if response.status_code().is_success() {
+            let resp: Value = response.json().await?;
+            Ok(resp)
+        } else {
+            let error_message: String = format!(
+                "[Elasticsearch Error][get_specific_index_info()] Failed to GET document: Status Code: {}",
                 response.status_code()
             );
             Err(anyhow!(error_message))
@@ -371,5 +414,10 @@ impl EsRepository for EsRepositoryPub {
     #[doc = "Cluster 정보를 맵핑해줄 index pattern 형식을 반환."]
     fn get_cluster_index_pattern(&self) -> String {
         self.index_pattern.to_string()
+    }
+
+    #[doc = "Cluster 내부의 모니터링 대상이 되는 인덱스의 지표를 저장해줄 인덱스패턴 형식을 반환"]
+    fn get_cluster_index_monitoring_patten(&self) -> String {
+        self.per_index_pattern.to_string()
     }
 }

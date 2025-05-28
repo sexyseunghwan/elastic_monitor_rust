@@ -1,7 +1,7 @@
 use crate::common::*;
 
-use crate::model::Config::*;
-use crate::model::TelegramConfig::*;
+use crate::model::config::*;
+use crate::model::telegram_config::*;
 
 /* 전역 Telebot 인스턴스를 선언 */
 static TELEGRAM_REPO: once_lazy<Arc<TelebotRepositoryPub>> =

@@ -1,6 +1,6 @@
 use crate::common::*;
 
-use crate::model::ReceiverEmail::*;
+use crate::model::receiver_email::*;
 
 #[derive(Serialize, Deserialize, Debug, Getters)]
 #[getset(get = "pub")]

@@ -1,12 +1,18 @@
 pub use std::{
-    collections::HashMap, fs::File, future::Future, io::BufReader, io::Write, str::{FromStr, Lines},
-    sync::Arc, env,
-    thread::sleep as std_sleep
+    collections::HashMap,
+    env,
+    fs::File,
+    future::Future,
+    io::BufReader,
+    io::Write,
+    str::{FromStr, Lines},
+    sync::Arc,
+    thread::sleep as std_sleep,
 };
 
 pub use tokio::{time::sleep, time::Duration};
 
-pub use log::{error, info};
+pub use log::{error, info, warn};
 
 pub use flexi_logger::{Age, Cleanup, Criterion, FileSpec, Logger, Naming, Record};
 
@@ -22,8 +28,9 @@ pub use elasticsearch::{
     cat::{CatIndicesParts, CatShardsParts},
     cluster::ClusterHealthParts,
     http::response::Response,
-    http::transport::{SingleNodeConnectionPool, TransportBuilder, Transport as EsTransport},
+    http::transport::{SingleNodeConnectionPool, Transport as EsTransport, TransportBuilder},
     http::Url,
+    indices::IndicesStatsParts,
     nodes::NodesStatsParts,
     Elasticsearch, IndexParts,
 };

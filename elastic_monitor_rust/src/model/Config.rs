@@ -2,9 +2,9 @@ use crate::common::*;
 
 use crate::utils_modules::io_utils::*;
 
+use crate::model::smtp_config::*;
+use crate::model::telegram_config::*;
 use crate::model::use_case_config::*;
-use crate::model::SmtpConfig::*;
-use crate::model::TelegramConfig::*;
 
 use crate::env_configuration::env_config::*;
 

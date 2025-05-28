@@ -22,6 +22,10 @@ History     : 2024-10-02 Seunghwan Shin       # [v.1.0.0] first create
               2025-02-12 Seunghwan Shin       # [v.1.8.0]
                                                 1) 하드코딩 되어있는 경로들을 모둔 .env 파일로 빼서 컴파일 없이도 수정될 수 있도록 코드 변경
                                                 2) reqwest::client 를 전역적으로 사용하도록 코두 수정
+              2025-04-16 Seunghwan Shin       # [v.1.9.0] 색인서버 모니터링 로직 추가
+              2025-05-00 Seunghwan Shin       # [v.1.10.0]
+                                                1) 나눗셈 버그 수정
+                                                2) refresh, flush, translog 지표도 모니터링 추가
 */
 
 mod common;
@@ -37,8 +41,8 @@ mod service;
 use service::metrics_service::*;
 
 mod model;
+use model::config::*;
 use model::use_case_config::*;
-use model::Config::*;
 
 mod repository;
 use repository::es_repository::*;
@@ -47,6 +51,8 @@ mod env_configuration;
 
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
+
     /* 전역 로거설정 */
     set_global_logger();
 
