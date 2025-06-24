@@ -214,8 +214,8 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         metric_vec: &mut Vec<MetricInfo>,
         cur_utc_time_str: &str,
     ) -> Result<(), anyhow::Error> {
-        let query_fields: [&str; 6] = ["fs", "jvm", "indices", "os", "http", "breaker"];
-
+        let query_fields: [&str; 5] = ["fs", "jvm", "indices", "os", "http"];
+        
         /* GET /_nodes/stats */
         let get_nodes_stats: Value = self.elastic_obj.get_node_stats(&query_fields).await?;
 
@@ -240,6 +240,21 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                     get_value_by_path(node_info, "jvm.mem.pools.old.used_in_bytes")?;
                 let jvm_survivor_usage: i64 =
                     get_value_by_path(node_info, "jvm.mem.pools.survivor.used_in_bytes")?;
+                
+                let jvm_buffer_pool_mapped_count: u64 =
+                    get_value_by_path(node_info, "jvm.buffer_pools.mapped.count")?;
+                let jvm_buffer_pool_mapped_use_byte: u64 =
+                    get_value_by_path(node_info, "jvm.buffer_pools.mapped.used_in_bytes")?;
+                let jvm_buffer_pool_mapped_total_byte: u64 =
+                    get_value_by_path(node_info, "jvm.buffer_pools.mapped.total_capacity_in_bytes")?;
+
+                let jvm_buffer_pool_direct_count: u64 =
+                    get_value_by_path(node_info, "jvm.buffer_pools.direct.count")?;
+                let jvm_buffer_pool_direct_use_byte: u64 =
+                    get_value_by_path(node_info, "jvm.buffer_pools.direct.used_in_bytes")?;
+                let jvm_buffer_pool_direct_total_byte: u64 =
+                    get_value_by_path(node_info, "jvm.buffer_pools.direct.total_capacity_in_bytes")?;
+
 
                 let query_cache_total_cnt: i64 =
                     get_value_by_path(node_info, "indices.query_cache.total_count")?;
@@ -298,11 +313,6 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 let refresh_listener: i64 =
                     get_value_by_path(node_info, "indices.refresh.listeners")?;
 
-                let inflight_requests: i64 = get_value_by_path(
-                    node_info,
-                    "breakers.inflight_requests.estimated_size_in_bytes",
-                )?;
-
                 let metric_info: MetricInfo = MetricInfoBuilder::default()
                     .timestamp(cur_utc_time_str.to_string())
                     .host(host.to_string())
@@ -313,6 +323,12 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                     .jvm_young_usage_byte(jvm_young_usage)
                     .jvm_old_usage_byte(jvm_old_usage)
                     .jvm_survivor_usage_byte(jvm_survivor_usage)
+                    .jvm_buffer_pool_mapped_count(jvm_buffer_pool_mapped_count)
+                    .jvm_buffer_pool_mapped_use_byte(jvm_buffer_pool_mapped_use_byte)
+                    .jvm_buffer_pool_mapped_total_byte(jvm_buffer_pool_mapped_total_byte)
+                    .jvm_buffer_pool_direct_count(jvm_buffer_pool_direct_count)
+                    .jvm_buffer_pool_direct_use_byte(jvm_buffer_pool_direct_use_byte)
+                    .jvm_buffer_pool_direct_total_byte(jvm_buffer_pool_direct_total_byte)
                     .query_cache_hit(query_cache_hit)
                     .cache_memory_size(cache_memory_size)
                     .os_swap_total_in_bytes(os_swap_total_in_bytes)
@@ -329,7 +345,6 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                     .flush_total(flush_total)
                     .refresh_total(refresh_total)
                     .refresh_listener(refresh_listener)
-                    .inflight_requests(inflight_requests)
                     .search_active_thread(0)
                     .search_thread_queue(0)
                     .search_rejected_thread(0)
