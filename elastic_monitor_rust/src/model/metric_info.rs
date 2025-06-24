@@ -1,10 +1,11 @@
 use crate::common::*;
 
-#[derive(Clone, Serialize, Deserialize, Debug, Getters, new)]
+#[derive(Builder, Clone, Serialize, Deserialize, Debug, Getters, new)]
 #[getset(get = "pub", set = "pub")]
 pub struct MetricInfo {
     pub timestamp: String,
     pub host: String,
+    pub name: String,
     pub jvm_usage: i64,
     pub cpu_usage: i64,
     pub disk_usage: i64,
@@ -27,4 +28,23 @@ pub struct MetricInfo {
     pub flush_total: i64,
     pub refresh_total: i64,
     pub refresh_listener: i64,
+    pub inflight_requests: i64,
+    pub search_active_thread: u32,
+    pub search_thread_queue: u32,
+    pub search_rejected_thread: u32,
+    pub write_active_thread: u32,
+    pub write_thread_queue: u32,
+    pub write_rejected_thread: u32,
+    pub bulk_active_thread: u32,
+    pub bulk_thread_queue: u32,
+    pub bulk_rejected_thread: u32,
+    pub get_active_thread: u32,
+    pub get_thread_queue: u32,
+    pub get_rejected_thread: u32,
+    pub menagement_active_thread: u32,
+    pub menagement_thread_queue: u32,
+    pub menagement_rejected_thread: u32,
+    pub generic_active_thread: u32,
+    pub generic_thread_queue: u32,
+    pub generic_rejected_thread: u32,
 }

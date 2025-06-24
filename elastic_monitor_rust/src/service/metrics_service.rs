@@ -1,7 +1,7 @@
 use crate::common::*;
 
 use crate::utils_modules::calculate_utils::*;
-use crate::utils_modules::io_utils::read_toml_from_file;
+use crate::utils_modules::io_utils::*;
 use crate::utils_modules::json_utils::*;
 use crate::utils_modules::time_utils::*;
 
@@ -13,6 +13,7 @@ use crate::model::indicies::*;
 use crate::model::message_formatter::*;
 use crate::model::metric_info::*;
 use crate::model::use_case_config::*;
+use crate::model::thread_pool_stat::*;
 
 use crate::repository::es_repository::*;
 use crate::repository::smtp_repository::*;
@@ -40,6 +41,10 @@ pub trait MetricService {
         cur_utc_time_str: &str,
     ) -> Result<IndexMetricInfo, anyhow::Error>;
     async fn get_cat_shards_handle(
+        &self,
+        metric_vec: &mut Vec<MetricInfo>,
+    ) -> Result<(), anyhow::Error>;
+    async fn get_cat_thread_pool_handle(
         &self,
         metric_vec: &mut Vec<MetricInfo>,
     ) -> Result<(), anyhow::Error>;
@@ -157,7 +162,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 [health, status, index, ..] => (health, status, index),
                 _ => continue,
             };
-
+            
             /* 개발환경, 운영환경 코드 구분 */
             // let is_unstable: bool = match use_case {
             //     "dev" => *health == "red" || *status == "open",
@@ -209,7 +214,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         metric_vec: &mut Vec<MetricInfo>,
         cur_utc_time_str: &str,
     ) -> Result<(), anyhow::Error> {
-        let query_fields: [&str; 5] = ["fs", "jvm", "indices", "os", "http"];
+        let query_fields: [&str; 6] = ["fs", "jvm", "indices", "os", "http", "breaker"];
 
         /* GET /_nodes/stats */
         let get_nodes_stats: Value = self.elastic_obj.get_node_stats(&query_fields).await?;
@@ -217,6 +222,8 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         if let Some(nodes) = get_nodes_stats["nodes"].as_object() {
             for (_node_id, node_info) in nodes {
                 let host: String = get_value_by_path(node_info, "host")?;
+                let name: String = get_value_by_path(node_info, "name")?;
+
                 let cpu_usage: i64 = get_value_by_path(node_info, "os.cpu.percent")?;
                 let jvm_usage: i64 = get_value_by_path(node_info, "jvm.mem.heap_used_percent")?;
 
@@ -291,33 +298,58 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 let refresh_listener: i64 =
                     get_value_by_path(node_info, "indices.refresh.listeners")?;
 
-                let metric_info: MetricInfo = MetricInfo::new(
-                    cur_utc_time_str.to_string(),
-                    host.to_string(),
-                    jvm_usage,
-                    cpu_usage,
-                    disk_usage.round() as i64,
-                    jvm_young_usage,
-                    jvm_old_usage,
-                    jvm_survivor_usage,
-                    query_cache_hit,
-                    cache_memory_size,
-                    os_swap_total_in_bytes,
-                    os_swap_usage,
-                    http_current_open,
-                    0,
-                    indexing_latency,
-                    query_latency,
-                    fetch_latency,
-                    translog_operation,
-                    translog_operation_size,
-                    translog_uncommited_operation,
-                    translog_uncommited_operation_size,
-                    flush_total,
-                    refresh_total,
-                    refresh_listener,
-                );
+                let inflight_requests: i64 = get_value_by_path(
+                    node_info,
+                    "breakers.inflight_requests.estimated_size_in_bytes",
+                )?;
 
+                let metric_info: MetricInfo = MetricInfoBuilder::default()
+                    .timestamp(cur_utc_time_str.to_string())
+                    .host(host.to_string())
+                    .name(name)
+                    .jvm_usage(jvm_usage)
+                    .cpu_usage(cpu_usage)
+                    .disk_usage(disk_usage.round() as i64)
+                    .jvm_young_usage_byte(jvm_young_usage)
+                    .jvm_old_usage_byte(jvm_old_usage)
+                    .jvm_survivor_usage_byte(jvm_survivor_usage)
+                    .query_cache_hit(query_cache_hit)
+                    .cache_memory_size(cache_memory_size)
+                    .os_swap_total_in_bytes(os_swap_total_in_bytes)
+                    .os_swap_usage(os_swap_usage)
+                    .http_current_open(http_current_open)
+                    .node_shard_cnt(0)
+                    .indexing_latency(indexing_latency)
+                    .query_latency(query_latency)
+                    .fetch_latency(fetch_latency)
+                    .translog_operation(translog_operation)
+                    .translog_operation_size(translog_operation_size)
+                    .translog_uncommited_operation(translog_uncommited_operation)
+                    .translog_uncommited_operation_size(translog_uncommited_operation_size)
+                    .flush_total(flush_total)
+                    .refresh_total(refresh_total)
+                    .refresh_listener(refresh_listener)
+                    .inflight_requests(inflight_requests)
+                    .search_active_thread(0)
+                    .search_thread_queue(0)
+                    .search_rejected_thread(0)
+                    .write_active_thread(0)
+                    .write_thread_queue(0)
+                    .write_rejected_thread(0)
+                    .bulk_active_thread(0)
+                    .bulk_thread_queue(0)
+                    .bulk_rejected_thread(0)
+                    .get_active_thread(0)
+                    .get_thread_queue(0)
+                    .get_rejected_thread(0)
+                    .menagement_active_thread(0)
+                    .menagement_thread_queue(0)
+                    .menagement_rejected_thread(0)
+                    .generic_active_thread(0)
+                    .generic_thread_queue(0)
+                    .generic_rejected_thread(0)
+                    .build()?;
+                
                 metric_vec.push(metric_info);
             }
         }
@@ -373,6 +405,11 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
     }
 
     #[doc = "GET /_cat/shards 정보들을 핸들링 해주는 함수"]
+    /// # Arguments
+    /// * `metric_vec`          - 모니터링 지표 리스트
+    ///
+    /// # Returns
+    /// * Result<(), anyhow::Error>
     async fn get_cat_shards_handle(
         &self,
         metric_vec: &mut Vec<MetricInfo>,
@@ -406,6 +443,100 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         Ok(())
     }
 
+    #[doc = "GET /_cat/thread_pool 정보들을 핸들링 해주는 함수"]
+    /// # Arguments
+    /// * `metric_vec`          - 모니터링 지표 리스트
+    ///
+    /// # Returns
+    /// * Result<(), anyhow::Error>
+    async fn get_cat_thread_pool_handle(
+        &self,
+        metric_vec: &mut Vec<MetricInfo>,
+    ) -> Result<(), anyhow::Error> {
+        let query_feilds: [&str; 6] = ["search", "write", "bulk", "get", "management", "generic"];
+        
+        let get_cat_thread_pool: String = self.elastic_obj.get_cat_thread_pool().await?;
+
+        let thread_pool_stats: Vec<ThreadPoolStat> = get_cat_thread_pool
+            .lines()
+            .filter_map(|line| {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+
+                if parts.len() >= 5 && query_feilds.contains(&parts[1]) {
+                    Some(
+                        ThreadPoolStat::new(
+                            parts[0].to_string(),
+                            parts[1].to_string(),
+                            parts[2].parse().unwrap_or(0),
+                            parts[3].parse().unwrap_or(0),
+                            parts[4].parse().unwrap_or(0)
+                        )
+                    )
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let mut map: HashMap<String, Vec<ThreadPoolStat>> = HashMap::new();
+
+        for stat in thread_pool_stats {
+            map.entry(stat.node_name().clone())
+                .or_insert(Vec::new())
+                .push(stat);
+        }
+
+        for metric in metric_vec {
+            let node_name = metric.name();
+            let thread_pool_stat: &Vec<ThreadPoolStat> = match map.get(node_name) {
+                Some(thread_pool_stat) => thread_pool_stat,
+                None => {
+                    error!("[Error][MetricService->get_cat_thread_pool_handle] The information corresponding to {} does not exist.", node_name);
+                    continue;
+                }
+            };
+
+            for stat in thread_pool_stat {
+                match stat.name().as_str() {
+                    "search" => {
+                        metric.search_active_thread = *stat.active();
+                        metric.search_thread_queue = *stat.queue();
+                        metric.search_rejected_thread = *stat.rejected();
+                    }
+                     "write" => {
+                        metric.write_active_thread = *stat.active();
+                        metric.write_thread_queue = *stat.queue();
+                        metric.write_rejected_thread = *stat.rejected();
+                    }
+                    "bulk" => {
+                        metric.bulk_active_thread = *stat.active();
+                        metric.bulk_thread_queue = *stat.queue();
+                        metric.bulk_rejected_thread = *stat.rejected();
+                    }
+                    "get" => {
+                        metric.get_active_thread = *stat.active();
+                        metric.get_thread_queue = *stat.queue();
+                        metric.get_rejected_thread = *stat.rejected();
+                    }
+                    "management" => {
+                        metric.menagement_active_thread = *stat.active();
+                        metric.menagement_thread_queue = *stat.queue();
+                        metric.menagement_rejected_thread = *stat.rejected();
+                    }
+                    "generic" => {
+                        metric.generic_active_thread = *stat.active();
+                        metric.generic_thread_queue = *stat.queue();
+                        metric.generic_rejected_thread = *stat.rejected();
+                    }
+                    _ => {} 
+                }
+            }
+        }
+
+        
+        Ok(())
+    }
+
     #[doc = "각 cluster node 들의 정보를 elasticsearch 에 적재하는 함수"]
     async fn post_cluster_nodes_infos(&self) -> Result<(), anyhow::Error> {
         /* 지표를 저장해줄 인스턴스 벡터. */
@@ -430,6 +561,9 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         /* 2. GET /_cat/shards */
         self.get_cat_shards_handle(&mut metric_vec).await?;
 
+        /* 3. GET /_cat/thread_pool */
+        self.get_cat_thread_pool_handle(&mut metric_vec).await?;
+
         for metric in metric_vec {
             let document: Value = serde_json::to_value(&metric)?;
             self.elastic_obj.post_doc(&index_name, document).await?;
@@ -443,7 +577,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         let cur_utc_time: NaiveDateTime = get_currnet_utc_naivedatetime();
         let cur_utc_time_str: String =
             get_str_from_naivedatetime(cur_utc_time, "%Y-%m-%dT%H:%M:%SZ")?;
-        
+
         /* 날짜 기준으로 인덱스 이름 맵핑 */
         let index_pattern: String = self.elastic_obj.get_cluster_index_monitoring_patten();
         let index_name: String = format!(
@@ -451,7 +585,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
             index_pattern,
             get_str_from_naivedatetime(cur_utc_time, "%Y%m%d")?
         );
-        
+
         let cluster_name: String = self.elastic_obj.get_cluster_name();
         let monitor_indexies: IndexConfig =
             read_toml_from_file::<IndexConfig>(&ELASTIC_INDEX_INFO_PATH)?;
@@ -466,7 +600,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
             let index_matric_info: IndexMetricInfo = self
                 .get_index_stats_handle(elem.index_name(), &cur_utc_time_str)
                 .await?;
-            
+
             let document: Value = serde_json::to_value(&index_matric_info)?;
             self.elastic_obj.post_doc(&index_name, document).await?;
         }

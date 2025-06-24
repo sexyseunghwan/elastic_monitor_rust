@@ -43,7 +43,7 @@ impl<M: MetricService> MainHandler<M> {
 
         /* 5. 모니터링 할 인덱스 metric value 를 서버로 Post */
         self.metirc_service.post_cluster_index_infos().await?;
-        
+
         Ok(())
     }
 }

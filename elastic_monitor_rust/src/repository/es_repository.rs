@@ -40,6 +40,7 @@ pub trait EsRepository {
     async fn get_specific_index_info(&self, index_name: &str) -> Result<Value, anyhow::Error>;
 
     async fn get_cat_shards(&self, fields: &[&str]) -> Result<String, anyhow::Error>;
+    async fn get_cat_thread_pool(&self) -> Result<String, anyhow::Error>;
     async fn post_doc(&self, index_name: &str, document: Value) -> Result<(), anyhow::Error>;
 
     fn get_cluster_name(&self) -> String;
@@ -308,7 +309,7 @@ impl EsRepository for EsRepositoryPub {
                 Ok(response)
             })
             .await?;
-            
+
         if response.status_code().is_success() {
             let resp: Value = response.json().await?;
             Ok(resp)
@@ -352,6 +353,33 @@ impl EsRepository for EsRepositoryPub {
                 response.status_code()
             );
             Err(anyhow!(error_message))
+        }
+    }
+
+    #[doc = "GET /_cat/thread_pool"]
+    async fn get_cat_thread_pool(&self) -> Result<String, anyhow::Error> {
+        let response: Response = self
+            .execute_on_any_node(|es_client| async move {
+                let response: Response = es_client
+                    .es_conn
+                    .cat()
+                    .thread_pool(CatThreadPoolParts::None)
+                    .send()
+                    .await?;
+
+                Ok(response)
+            })
+            .await?;
+
+        if response.status_code().is_success() {
+            let body: String = response.text().await?;
+            Ok(body)
+        } else {
+            let msg: String = format!(
+                "[Elasticsearch Error][get_cat_thread_pool()] Failed to GET thread pool info: Status Code: {}",
+                response.status_code()
+            );
+            Err(anyhow!(msg))
         }
     }
 

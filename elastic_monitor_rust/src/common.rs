@@ -25,7 +25,7 @@ pub use dotenv::dotenv;
 pub use reqwest::Client;
 
 pub use elasticsearch::{
-    cat::{CatIndicesParts, CatShardsParts},
+    cat::{CatIndicesParts, CatShardsParts, CatThreadPoolParts},
     cluster::ClusterHealthParts,
     http::response::Response,
     http::transport::{SingleNodeConnectionPool, Transport as EsTransport, TransportBuilder},
@@ -55,3 +55,5 @@ pub use lettre::{
     transport::smtp::authentication::Credentials,
     AsyncSmtpTransport, AsyncTransport, Message, Transport,
 };
+
+pub use derive_builder::Builder;
