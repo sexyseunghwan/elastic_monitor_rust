@@ -26,3 +26,8 @@ pub static ELASTIC_INDEX_INFO_PATH: once_lazy<String> = once_lazy::new(|| {
     env::var("ELASTIC_INDEX_INFO_PATH")
         .expect("[ENV file read Error] 'ELASTIC_INDEX_INFO_PATH' must be set")
 });
+
+#[doc = "Function to globally initialize the 'URGENT_CONFIG_PATH' variable"]
+pub static URGENT_CONFIG_PATH: once_lazy<String> = once_lazy::new(|| {
+    env::var("URGENT_CONFIG_PATH").expect("[ENV file read Error] 'URGENT_CONFIG_PATH' must be set")
+});

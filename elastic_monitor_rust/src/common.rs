@@ -18,7 +18,7 @@ pub use flexi_logger::{Age, Cleanup, Criterion, FileSpec, Logger, Naming, Record
 
 pub use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-pub use serde_json::{from_reader, Value};
+pub use serde_json::{from_reader, json, Value};
 
 pub use dotenv::dotenv;
 
@@ -32,7 +32,7 @@ pub use elasticsearch::{
     http::Url,
     indices::IndicesStatsParts,
     nodes::NodesStatsParts,
-    Elasticsearch, IndexParts,
+    Elasticsearch, IndexParts, SearchParts,
 };
 
 pub use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};

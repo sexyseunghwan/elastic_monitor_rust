@@ -1,6 +1,7 @@
 use crate::common::*;
 
 use crate::model::cluster_config::*;
+use crate::model::elastic_source_parser::*;
 
 use crate::utils_modules::io_utils::*;
 
@@ -22,6 +23,7 @@ pub fn initialize_db_clients() -> Result<Vec<EsRepositoryPub>, anyhow::Error> {
             &config.es_pw,
             &config.index_pattern,
             &config.per_index_pattern,
+            &config.urgent_index_pattern,
         )?;
 
         elastic_conn_vec.push(es_helper);
@@ -43,10 +45,17 @@ pub trait EsRepository {
     async fn get_cat_thread_pool(&self) -> Result<String, anyhow::Error>;
     async fn post_doc(&self, index_name: &str, document: Value) -> Result<(), anyhow::Error>;
 
+    async fn get_search_query<T: for<'de> Deserialize<'de> + Send + 'static>(
+        &self,
+        es_query: &Value,
+        index_name: &str,
+    ) -> Result<Vec<T>, anyhow::Error>;
+
     fn get_cluster_name(&self) -> String;
     fn get_cluster_all_host_infos(&self) -> Vec<String>;
     fn get_cluster_index_pattern(&self) -> String;
-    fn get_cluster_index_monitoring_patten(&self) -> String;
+    fn get_cluster_index_monitoring_pattern(&self) -> String;
+    fn get_cluster_index_urgent_pattern(&self) -> String;
 }
 
 #[derive(Debug, Getters, Clone)]
@@ -56,6 +65,7 @@ pub struct EsRepositoryPub {
     pub es_clients: Vec<Arc<EsClient>>,
     pub index_pattern: String,
     pub per_index_pattern: String,
+    pub urgent_index_pattern: String,
 }
 
 #[derive(Debug, Getters, Clone, new)]
@@ -73,6 +83,7 @@ impl EsRepositoryPub {
     /// * `es_pw`               - Elasticsearch 계정정보 - 비밀번호
     /// * `log_index_pattern`   - Elasticsearch 의 지표정보를 저장해줄 인덱스 패턴 이름
     /// * `per_index_pattern`   - Elasitcsearch 의 각 인덱스 지표를 저장해줄 인덱스 패턴 이름
+    /// * `urgent_index_pattern`- Elasticsearch 에서 긴급하게 모니터링 해야 할 인덱스 패턴
     ///
     /// # Returns
     /// * Result<Self, anyhow::Error>
@@ -83,6 +94,7 @@ impl EsRepositoryPub {
         es_pw: &str,
         log_index_pattern: &str,
         per_index_pattern: &str,
+        urgent_index_pattern: &str,
     ) -> Result<Self, anyhow::Error> {
         let mut es_clients: Vec<Arc<EsClient>> = Vec::new();
 
@@ -109,6 +121,7 @@ impl EsRepositoryPub {
             es_clients,
             index_pattern: log_index_pattern.to_string(),
             per_index_pattern: per_index_pattern.to_string(),
+            urgent_index_pattern: urgent_index_pattern.to_string(),
         })
     }
 
@@ -423,6 +436,49 @@ impl EsRepository for EsRepositoryPub {
         }
     }
 
+    #[doc = "특정 인덱스에서 get 쿼리로 데이터를 가져와주는 함수"]
+    /// # Arguments
+    /// * `es_query`      - Elasticsearch 쿼리
+    /// * `index_name`    - 인덱스 이름
+    ///
+    /// # Returns
+    /// * Result<Value, anyhow::Error>
+    async fn get_search_query<T: for<'de> Deserialize<'de> + Send + 'static>(
+        &self,
+        es_query: &Value,
+        index_name: &str,
+    ) -> Result<Vec<T>, anyhow::Error> {
+        let response: Response = self
+            .execute_on_any_node(|es_client| async move {
+                let response: Response = es_client
+                    .es_conn
+                    .search(SearchParts::Index(&[index_name]))
+                    .body(es_query)
+                    .send()
+                    .await?;
+
+                Ok(response)
+            })
+            .await?;
+
+        if response.status_code().is_success() {
+            let parsed: SearchResponse<T> = response.json().await?;
+            let dtos: Vec<T> = parsed
+                .hits
+                .hits
+                .into_iter()
+                .map(|hit| hit._source)
+                .collect();
+            Ok(dtos)
+        } else {
+            let error_body: String = response.text().await?;
+            Err(anyhow!(
+                "[Elasticsearch Error][get_search_query_dto] response status is failed: {:?}",
+                error_body
+            ))
+        }
+    }
+
     #[doc = "Elasticsearch 클러스터의 이름을 가져와주는 함수."]
     fn get_cluster_name(&self) -> String {
         self.cluster_name().to_string()
@@ -445,7 +501,12 @@ impl EsRepository for EsRepositoryPub {
     }
 
     #[doc = "Cluster 내부의 모니터링 대상이 되는 인덱스의 지표를 저장해줄 인덱스패턴 형식을 반환"]
-    fn get_cluster_index_monitoring_patten(&self) -> String {
+    fn get_cluster_index_monitoring_pattern(&self) -> String {
         self.per_index_pattern.to_string()
+    }
+
+    #[doc = "Cluster 지표중 긴급하게 모니터링 해야할 인덱스 패턴 형식을 반환"]
+    fn get_cluster_index_urgent_pattern(&self) -> String {
+        self.urgent_index_pattern.to_string()
     }
 }

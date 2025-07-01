@@ -8,6 +8,11 @@ pub fn get_current_utc_naivedate() -> NaiveDate {
     utc_now.date_naive()
 }
 
+#[doc = "시스템에 호환되도록 날짜 타입을 변환해주는 함수"]
+pub fn format_datetime(dt: NaiveDateTime) -> Result<String, anyhow::Error> {
+    get_str_from_naivedatetime(dt, "%Y-%m-%dT%H:%M:%SZ")
+}
+
 /*
     Functions that return the current UTC time -> NaiveDatetime
 */

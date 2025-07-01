@@ -1,7 +1,7 @@
 use crate::common::*;
 
 use crate::model::config::*;
-use crate::model::message_formatter::*;
+use crate::model::message_formatter_dto::message_formatter::*;
 use crate::model::receiver_email::*;
 use crate::model::receiver_email_list::*;
 use crate::model::smtp_config::*;

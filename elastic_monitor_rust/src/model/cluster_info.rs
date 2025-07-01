@@ -8,4 +8,5 @@ pub struct ClusterInfo {
     pub es_pw: String,
     pub index_pattern: String,
     pub per_index_pattern: String,
+    pub urgent_index_pattern: String,
 }

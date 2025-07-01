@@ -10,10 +10,15 @@ use crate::model::index_config::*;
 use crate::model::index_info::*;
 use crate::model::index_metric_info::*;
 use crate::model::indicies::*;
-use crate::model::message_formatter::*;
+use crate::model::message_formatter_dto::message_formatter::*;
+use crate::model::message_formatter_dto::message_formatter_index::*;
+use crate::model::message_formatter_dto::message_formatter_node::*;
+use crate::model::message_formatter_dto::message_formatter_urgent::*;
 use crate::model::metric_info::*;
-use crate::model::use_case_config::*;
 use crate::model::thread_pool_stat::*;
+use crate::model::urgent_config::*;
+use crate::model::urgent_info::*;
+use crate::model::use_case_config::*;
 
 use crate::repository::es_repository::*;
 use crate::repository::smtp_repository::*;
@@ -23,6 +28,7 @@ use crate::env_configuration::env_config::*;
 
 #[async_trait]
 pub trait MetricService {
+    fn get_today_index_name(&self, dt: NaiveDateTime) -> Result<String, anyhow::Error>;
     async fn get_cluster_node_check(&self) -> Result<(), anyhow::Error>;
     async fn get_cluster_health_check(&self) -> Result<String, anyhow::Error>;
     async fn get_cluster_unstable_index_infos(
@@ -49,13 +55,12 @@ pub trait MetricService {
         metric_vec: &mut Vec<MetricInfo>,
     ) -> Result<(), anyhow::Error>;
     async fn post_cluster_nodes_infos(&self) -> Result<(), anyhow::Error>;
-
     async fn send_alarm_infos<T: MessageFormatter + Sync + Send>(
         &self,
         msg_fmt: &T,
     ) -> Result<(), anyhow::Error>;
-
     async fn post_cluster_index_infos(&self) -> Result<(), anyhow::Error>;
+    async fn send_alarm_urgent_infos(&self) -> Result<(), anyhow::Error>;
 }
 
 #[derive(Clone, Debug)]
@@ -72,6 +77,22 @@ impl<R: EsRepository> MetricServicePub<R> {
 
 #[async_trait]
 impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
+    
+    #[doc = "인덱스 뒤에 금일 날짜를 추가해주는 함수"]
+    /// # Arguments
+    /// * `dt` - 날짜 타입
+    ///
+    /// # Returns
+    /// * Result<String, anyhow::Error>
+    fn get_today_index_name(&self, dt: NaiveDateTime) -> Result<String, anyhow::Error> {
+        let date: String = get_str_from_naivedatetime(dt, "%Y%m%d")?;
+        Ok(format!(
+            "{}{}",
+            self.elastic_obj.get_cluster_index_urgent_pattern(),
+            date
+        ))
+    }
+    
     #[doc = "문제가 발생했을 때 알람을 보내주는 함수."]
     /// # Arguments
     /// * `msg_fmt` - 메시지 포멧터 트레잇
@@ -88,7 +109,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         tele_service.bot_send(telegram_format.as_str()).await?;
 
         /* Email 전송 */
-        let smtp_repo = get_smtp_repo();
+        let smtp_repo: Arc<SmtpRepositoryPub> = get_smtp_repo();
         let email_format: HtmlContents = msg_fmt.get_email_format();
         smtp_repo.send_message_to_receivers(&email_format).await?;
 
@@ -162,7 +183,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 [health, status, index, ..] => (health, status, index),
                 _ => continue,
             };
-            
+
             /* 개발환경, 운영환경 코드 구분 */
             // let is_unstable: bool = match use_case {
             //     "dev" => *health == "red" || *status == "open",
@@ -215,7 +236,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         cur_utc_time_str: &str,
     ) -> Result<(), anyhow::Error> {
         let query_fields: [&str; 5] = ["fs", "jvm", "indices", "os", "http"];
-        
+
         /* GET /_nodes/stats */
         let get_nodes_stats: Value = self.elastic_obj.get_node_stats(&query_fields).await?;
 
@@ -240,21 +261,24 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                     get_value_by_path(node_info, "jvm.mem.pools.old.used_in_bytes")?;
                 let jvm_survivor_usage: i64 =
                     get_value_by_path(node_info, "jvm.mem.pools.survivor.used_in_bytes")?;
-                
+
                 let jvm_buffer_pool_mapped_count: u64 =
                     get_value_by_path(node_info, "jvm.buffer_pools.mapped.count")?;
                 let jvm_buffer_pool_mapped_use_byte: u64 =
                     get_value_by_path(node_info, "jvm.buffer_pools.mapped.used_in_bytes")?;
-                let jvm_buffer_pool_mapped_total_byte: u64 =
-                    get_value_by_path(node_info, "jvm.buffer_pools.mapped.total_capacity_in_bytes")?;
+                let jvm_buffer_pool_mapped_total_byte: u64 = get_value_by_path(
+                    node_info,
+                    "jvm.buffer_pools.mapped.total_capacity_in_bytes",
+                )?;
 
                 let jvm_buffer_pool_direct_count: u64 =
                     get_value_by_path(node_info, "jvm.buffer_pools.direct.count")?;
                 let jvm_buffer_pool_direct_use_byte: u64 =
                     get_value_by_path(node_info, "jvm.buffer_pools.direct.used_in_bytes")?;
-                let jvm_buffer_pool_direct_total_byte: u64 =
-                    get_value_by_path(node_info, "jvm.buffer_pools.direct.total_capacity_in_bytes")?;
-
+                let jvm_buffer_pool_direct_total_byte: u64 = get_value_by_path(
+                    node_info,
+                    "jvm.buffer_pools.direct.total_capacity_in_bytes",
+                )?;
 
                 let query_cache_total_cnt: i64 =
                     get_value_by_path(node_info, "indices.query_cache.total_count")?;
@@ -364,7 +388,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                     .generic_thread_queue(0)
                     .generic_rejected_thread(0)
                     .build()?;
-                
+
                 metric_vec.push(metric_info);
             }
         }
@@ -469,7 +493,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         metric_vec: &mut Vec<MetricInfo>,
     ) -> Result<(), anyhow::Error> {
         let query_feilds: [&str; 6] = ["search", "write", "bulk", "get", "management", "generic"];
-        
+
         let get_cat_thread_pool: String = self.elastic_obj.get_cat_thread_pool().await?;
 
         let thread_pool_stats: Vec<ThreadPoolStat> = get_cat_thread_pool
@@ -478,15 +502,13 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 let parts: Vec<&str> = line.split_whitespace().collect();
 
                 if parts.len() >= 5 && query_feilds.contains(&parts[1]) {
-                    Some(
-                        ThreadPoolStat::new(
-                            parts[0].to_string(),
-                            parts[1].to_string(),
-                            parts[2].parse().unwrap_or(0),
-                            parts[3].parse().unwrap_or(0),
-                            parts[4].parse().unwrap_or(0)
-                        )
-                    )
+                    Some(ThreadPoolStat::new(
+                        parts[0].to_string(),
+                        parts[1].to_string(),
+                        parts[2].parse().unwrap_or(0),
+                        parts[3].parse().unwrap_or(0),
+                        parts[4].parse().unwrap_or(0),
+                    ))
                 } else {
                     None
                 }
@@ -518,7 +540,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                         metric.search_thread_queue = *stat.queue();
                         metric.search_rejected_thread = *stat.rejected();
                     }
-                     "write" => {
+                    "write" => {
                         metric.write_active_thread = *stat.active();
                         metric.write_thread_queue = *stat.queue();
                         metric.write_rejected_thread = *stat.rejected();
@@ -543,12 +565,11 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                         metric.generic_thread_queue = *stat.queue();
                         metric.generic_rejected_thread = *stat.rejected();
                     }
-                    _ => {} 
+                    _ => {}
                 }
             }
         }
 
-        
         Ok(())
     }
 
@@ -594,7 +615,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
             get_str_from_naivedatetime(cur_utc_time, "%Y-%m-%dT%H:%M:%SZ")?;
 
         /* 날짜 기준으로 인덱스 이름 맵핑 */
-        let index_pattern: String = self.elastic_obj.get_cluster_index_monitoring_patten();
+        let index_pattern: String = self.elastic_obj.get_cluster_index_monitoring_pattern();
         let index_name: String = format!(
             "{}{}",
             index_pattern,
@@ -619,6 +640,76 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
             let document: Value = serde_json::to_value(&index_matric_info)?;
             self.elastic_obj.post_doc(&index_name, document).await?;
         }
+
+        Ok(())
+    }
+
+    #[doc = "긴급한 지표를 모니터링 한 뒤 알람을 보내주는 함수"]
+    async fn send_alarm_urgent_infos(&self) -> Result<(), anyhow::Error> {
+        let cluster_name: String = self.elastic_obj.get_cluster_name();
+
+        let now: NaiveDateTime = get_currnet_utc_naivedatetime();
+        let past: NaiveDateTime = now - chrono::Duration::seconds(100000);
+
+        let now_str: String = format_datetime(now)?;
+        let past_str: String = format_datetime(past)?;
+
+        /* 인덱스 이름 생성 */ 
+        let index_name: String = self.get_today_index_name(now)?;
+
+        /* 긴근 모니터링 구성 로딩 */
+        let urgent_configs: UrgentConfigList =
+            read_toml_from_file::<UrgentConfigList>(&URGENT_CONFIG_PATH)?;
+
+        /* 엘라스틱 서치 쿼리를 통해서 최근 20초동안 urgent 지표를 확인해준다. */
+        let query: Value = json!({
+            "query": {
+                "range": {
+                    "timestamp": {
+                        "gte": past_str,
+                        "lte": now_str
+                    }
+                }
+            }
+        });
+
+        let urgent_infos: Vec<UrgentInfo> = self
+            .elastic_obj
+            .get_search_query::<UrgentInfo>(&query, &index_name)
+            .await?;
+        
+        /* 알람 대상 필터링 */ 
+        let alarm_targets: Vec<UrgentAlarmInfo> = urgent_infos
+            .iter()
+            .flat_map(|info| {
+                urgent_configs
+                    .urgent()
+                    .iter()
+                    .filter_map(|cfg| {
+                        let metric: &String = cfg.metric_name();
+                        let limit: f64 = *cfg.limit();
+
+                        match info.get_field_value(metric) {
+                            Some(val) if val > limit => Some(UrgentAlarmInfo::new(
+                                info.host().to_string(),
+                                metric.clone(),
+                                val.to_string(),
+                            )),
+                            Some(_) => None,
+                            None => {
+                                error!(
+                                    "[MetricService][send_alarm_urgent_infos] Missing value for metric '{}'",
+                                    metric
+                                );
+                                None
+                            }
+                        }
+                    })
+            })
+            .collect();
+
+        let msg: MessageFormatterUrgent = MessageFormatterUrgent::new(cluster_name, alarm_targets);
+        self.send_alarm_infos(&msg).await?;
 
         Ok(())
     }
