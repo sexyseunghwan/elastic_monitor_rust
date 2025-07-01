@@ -34,7 +34,7 @@ impl MessageFormatter for MessageFormatterUrgent {
         for urgent_info in self.urgent_infos() {
             msg_contents.push_str(
                 format!(
-                    "{}:{} - {}\n",
+                    " {}: {} - {}\n",
                     urgent_info.metirc_name(),
                     urgent_info.metic_value_str(),
                     urgent_info.host()

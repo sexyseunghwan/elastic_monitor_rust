@@ -16,8 +16,8 @@ use crate::model::message_formatter_dto::message_formatter_node::*;
 use crate::model::message_formatter_dto::message_formatter_urgent::*;
 use crate::model::metric_info::*;
 use crate::model::thread_pool_stat::*;
-use crate::model::urgent_config::*;
-use crate::model::urgent_info::*;
+use crate::model::urgent_dto::urgent_config::*;
+use crate::model::urgent_dto::urgent_info::*;
 use crate::model::use_case_config::*;
 
 use crate::repository::es_repository::*;
@@ -28,7 +28,7 @@ use crate::env_configuration::env_config::*;
 
 #[async_trait]
 pub trait MetricService {
-    fn get_today_index_name(&self, dt: NaiveDateTime) -> Result<String, anyhow::Error>;
+    fn get_today_index_name(&self, index_name: &str, dt: NaiveDateTime) -> Result<String, anyhow::Error>;
     async fn get_cluster_node_check(&self) -> Result<(), anyhow::Error>;
     async fn get_cluster_health_check(&self) -> Result<String, anyhow::Error>;
     async fn get_cluster_unstable_index_infos(
@@ -80,15 +80,17 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
     
     #[doc = "인덱스 뒤에 금일 날짜를 추가해주는 함수"]
     /// # Arguments
+    /// * `index_name` - 인덱스 이름
     /// * `dt` - 날짜 타입
     ///
     /// # Returns
     /// * Result<String, anyhow::Error>
-    fn get_today_index_name(&self, dt: NaiveDateTime) -> Result<String, anyhow::Error> {
+    fn get_today_index_name(&self, index_name: &str, dt: NaiveDateTime) -> Result<String, anyhow::Error> {
         let date: String = get_str_from_naivedatetime(dt, "%Y%m%d")?;
         Ok(format!(
             "{}{}",
-            self.elastic_obj.get_cluster_index_urgent_pattern(),
+            index_name,
+            //self.elastic_obj.get_cluster_index_urgent_pattern(),
             date
         ))
     }
@@ -578,20 +580,15 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         /* 지표를 저장해줄 인스턴스 벡터. */
         let mut metric_vec: Vec<MetricInfo> = Vec::new();
 
-        let cur_utc_time: NaiveDateTime = get_currnet_utc_naivedatetime();
-        let cur_utc_time_str: String =
-            get_str_from_naivedatetime(cur_utc_time, "%Y-%m-%dT%H:%M:%SZ")?;
+        let now: NaiveDateTime = get_currnet_utc_naivedatetime();
+        let now_str: String = format_datetime(now)?;
 
         /* 날짜 기준으로 인덱스 이름 맵핑 */
-        let index_pattern: String = self.elastic_obj.get_cluster_index_pattern();
-        let index_name: String = format!(
-            "{}{}",
-            index_pattern,
-            get_str_from_naivedatetime(cur_utc_time, "%Y%m%d")?
-        );
+        let index_name: String = self
+            .get_today_index_name(self.elastic_obj.get_cluster_index_pattern().as_str(), now)?;
 
         /* 1. GET /_nodes/stats */
-        self.get_nodes_stats_handle(&mut metric_vec, &cur_utc_time_str)
+        self.get_nodes_stats_handle(&mut metric_vec, &now_str)
             .await?;
 
         /* 2. GET /_cat/shards */
@@ -610,19 +607,15 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
 
     #[doc = "모니터링 대상이 되는 index의 개별 정보를 elasticsearch 에 적재하는 함수"]
     async fn post_cluster_index_infos(&self) -> Result<(), anyhow::Error> {
-        let cur_utc_time: NaiveDateTime = get_currnet_utc_naivedatetime();
-        let cur_utc_time_str: String =
-            get_str_from_naivedatetime(cur_utc_time, "%Y-%m-%dT%H:%M:%SZ")?;
-
-        /* 날짜 기준으로 인덱스 이름 맵핑 */
-        let index_pattern: String = self.elastic_obj.get_cluster_index_monitoring_pattern();
-        let index_name: String = format!(
-            "{}{}",
-            index_pattern,
-            get_str_from_naivedatetime(cur_utc_time, "%Y%m%d")?
-        );
-
         let cluster_name: String = self.elastic_obj.get_cluster_name();
+        
+        let now: NaiveDateTime = get_currnet_utc_naivedatetime();
+        let now_str: String = format_datetime(now)?;
+
+        /* 인덱스 이름 생성 */ 
+        let index_name: String = self
+            .get_today_index_name(self.elastic_obj.get_cluster_index_monitoring_pattern().as_str(), now)?;
+
         let monitor_indexies: IndexConfig =
             read_toml_from_file::<IndexConfig>(&ELASTIC_INDEX_INFO_PATH)?;
 
@@ -634,7 +627,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
 
         for elem in index_vec {
             let index_matric_info: IndexMetricInfo = self
-                .get_index_stats_handle(elem.index_name(), &cur_utc_time_str)
+                .get_index_stats_handle(elem.index_name(), &now_str)
                 .await?;
 
             let document: Value = serde_json::to_value(&index_matric_info)?;
@@ -643,7 +636,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
 
         Ok(())
     }
-
+    
     #[doc = "긴급한 지표를 모니터링 한 뒤 알람을 보내주는 함수"]
     async fn send_alarm_urgent_infos(&self) -> Result<(), anyhow::Error> {
         let cluster_name: String = self.elastic_obj.get_cluster_name();
@@ -655,8 +648,9 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         let past_str: String = format_datetime(past)?;
 
         /* 인덱스 이름 생성 */ 
-        let index_name: String = self.get_today_index_name(now)?;
-
+        let index_name: String = self
+            .get_today_index_name(self.elastic_obj.get_cluster_index_urgent_pattern().as_str(),now)?;
+        
         /* 긴근 모니터링 구성 로딩 */
         let urgent_configs: UrgentConfigList =
             read_toml_from_file::<UrgentConfigList>(&URGENT_CONFIG_PATH)?;

@@ -1,7 +1,7 @@
 use crate::common::*;
 
 use crate::model::cluster_config::*;
-use crate::model::elastic_source_parser::*;
+use crate::model::elastic_dto::elastic_source_parser::*;
 
 use crate::utils_modules::io_utils::*;
 
