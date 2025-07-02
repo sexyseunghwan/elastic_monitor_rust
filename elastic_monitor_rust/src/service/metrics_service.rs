@@ -642,38 +642,40 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
             .get_search_query::<UrgentInfo>(&query, &index_name)
             .await?;
         
-        /* 알람 대상 필터링 */ 
-        let alarm_targets: Vec<UrgentAlarmInfo> = urgent_infos
-            .iter()
-            .flat_map(|info| {
-                urgent_configs
-                    .urgent()
-                    .iter()
-                    .filter_map(|cfg| {
-                        let metric: &String = cfg.metric_name();
-                        let limit: f64 = *cfg.limit();
+        if urgent_infos.len() > 0 {
+            /* 알람 대상 필터링 */ 
+            let alarm_targets: Vec<UrgentAlarmInfo> = urgent_infos
+                .iter()
+                .flat_map(|info| {
+                    urgent_configs
+                        .urgent()
+                        .iter()
+                        .filter_map(|cfg| {
+                            let metric: &String = cfg.metric_name();
+                            let limit: f64 = *cfg.limit();
 
-                        match info.get_field_value(metric) {
-                            Some(val) if val > limit => Some(UrgentAlarmInfo::new(
-                                info.host().to_string(),
-                                metric.clone(),
-                                val.to_string(),
-                            )),
-                            Some(_) => None,
-                            None => {
-                                error!(
-                                    "[MetricService][send_alarm_urgent_infos] Missing value for metric '{}'",
-                                    metric
-                                );
-                                None
+                            match info.get_field_value(metric) {
+                                Some(val) if val > limit => Some(UrgentAlarmInfo::new(
+                                    info.host().to_string(),
+                                    metric.clone(),
+                                    val.to_string(),
+                                )),
+                                Some(_) => None,
+                                None => {
+                                    error!(
+                                        "[MetricService][send_alarm_urgent_infos] Missing value for metric '{}'",
+                                        metric
+                                    );
+                                    None
+                                }
                             }
-                        }
-                    })
-            })
-            .collect();
+                        })
+                })
+                .collect();
 
-        let msg: MessageFormatterUrgent = MessageFormatterUrgent::new(cluster_name, alarm_targets);
-        self.send_alarm_infos(&msg).await?;
+            let msg: MessageFormatterUrgent = MessageFormatterUrgent::new(cluster_name, alarm_targets);
+            self.send_alarm_infos(&msg).await?;
+        }
 
         Ok(())
     }
