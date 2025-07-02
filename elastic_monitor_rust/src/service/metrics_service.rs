@@ -612,8 +612,8 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         let cluster_name: String = self.elastic_obj.get_cluster_name();
 
         let now: NaiveDateTime = get_currnet_utc_naivedatetime();
-        let past: NaiveDateTime = now - chrono::Duration::seconds(1000000);
-
+        let past: NaiveDateTime = now - chrono::Duration::seconds(20);
+        
         let now_str: String = format_datetime(now)?;
         let past_str: String = format_datetime(past)?;
 
@@ -626,7 +626,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
             read_toml_from_file::<UrgentConfigList>(&URGENT_CONFIG_PATH)?;
         
         /* 긴급 지표 모니터링 대상이 되는 노드 아이피 주소 */
-        let host_ip: Vec<String> = self.elastic_obj.get_cluster_all_monitor_host_infos()
+        let host_ips: Vec<String> = self.elastic_obj.get_cluster_all_monitor_host_infos()
             .iter()
             .map(|host_info| {
                 host_info
@@ -636,8 +636,13 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
             })
             .collect();
         
+        if host_ips.is_empty() {
+            warn!("[Warn][MetricService->send_alarm_urgent_infos] No host IPs found. Skipping query.");
+            return Ok(());
+        }
+
         /* elasticsearch shoul query */
-        let should_terms: Vec<Value> = host_ip
+        let should_terms: Vec<Value> = host_ips
             .iter()
             .map(|ip| json!({ "term": { "host": ip } }))
             .collect();
@@ -665,46 +670,54 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 }
             }
         });
-
+        
         let urgent_infos: Vec<UrgentInfo> = self
             .elastic_obj
             .get_search_query::<UrgentInfo>(&query, &index_name)
             .await?;
-        
-        if urgent_infos.len() > 0 {
-            /* 알람 대상 필터링 */ 
-            let alarm_targets: Vec<UrgentAlarmInfo> = urgent_infos
-                .iter()
-                .flat_map(|info| {
-                    urgent_configs
-                        .urgent()
-                        .iter()
-                        .filter_map(|cfg| {
-                            let metric: &String = cfg.metric_name();
-                            let limit: f64 = *cfg.limit();
 
-                            match info.get_field_value(metric) {
-                                Some(val) if val > limit => Some(UrgentAlarmInfo::new(
-                                    info.host().to_string(),
-                                    metric.clone(),
-                                    val.to_string(),
-                                )),
-                                Some(_) => None,
-                                None => {
-                                    error!(
-                                        "[MetricService][send_alarm_urgent_infos] Missing value for metric '{}'",
-                                        metric
-                                    );
-                                    None
-                                }
-                            }
-                        })
-                })
-                .collect();
-
-            let msg: MessageFormatterUrgent = MessageFormatterUrgent::new(cluster_name, alarm_targets);
-            self.send_alarm_infos(&msg).await?;
+        if urgent_infos.is_empty() {
+            info!("[Info][MetricService->send_alarm_urgent_infos] The `urgent_infos` vector is empty.");
+            return Ok(());
         }
+
+        /* 알람 대상 필터링 */ 
+        let alarm_targets: Vec<UrgentAlarmInfo> = urgent_infos
+            .iter()
+            .flat_map(|info| {
+                urgent_configs
+                    .urgent()
+                    .iter()
+                    .filter_map(|cfg| {
+                        let metric: &String = cfg.metric_name();
+                        let limit: f64 = *cfg.limit();
+
+                        match info.get_field_value(metric) {
+                            Some(val) if val > limit => Some(UrgentAlarmInfo::new(
+                                info.host().to_string(),
+                                metric.clone(),
+                                val.to_string(),
+                            )),
+                            Some(_) => None,
+                            None => {
+                                error!(
+                                    "[Error][MetricService->send_alarm_urgent_infos] Missing value for metric '{}'",
+                                    metric
+                                );
+                                None
+                            }
+                        }
+                    })
+            })
+            .collect();
+        
+        if alarm_targets.is_empty() {
+            info!("[Info][MetricService->send_alarm_urgent_infos] No emergency monitoring indicators exist that require an alarm.");
+            return Ok(());
+        }
+
+        let msg: MessageFormatterUrgent = MessageFormatterUrgent::new(cluster_name, alarm_targets);
+        self.send_alarm_infos(&msg).await?;
 
         Ok(())
     }
