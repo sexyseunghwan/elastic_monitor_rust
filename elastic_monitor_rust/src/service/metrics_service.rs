@@ -612,7 +612,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         let cluster_name: String = self.elastic_obj.get_cluster_name();
 
         let now: NaiveDateTime = get_currnet_utc_naivedatetime();
-        let past: NaiveDateTime = now - chrono::Duration::seconds(100000);
+        let past: NaiveDateTime = now - chrono::Duration::seconds(20);
 
         let now_str: String = format_datetime(now)?;
         let past_str: String = format_datetime(past)?;
