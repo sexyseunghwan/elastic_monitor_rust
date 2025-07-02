@@ -20,48 +20,14 @@ use crate::model::urgent_dto::urgent_config::*;
 use crate::model::urgent_dto::urgent_info::*;
 use crate::model::use_case_config::*;
 
-use crate::repository::es_repository::*;
 use crate::repository::smtp_repository::*;
 use crate::repository::tele_bot_repository::*;
 
 use crate::env_configuration::env_config::*;
 
-#[async_trait]
-pub trait MetricService {
-    fn get_today_index_name(&self, index_name: &str, dt: NaiveDateTime) -> Result<String, anyhow::Error>;
-    async fn get_cluster_node_check(&self) -> Result<(), anyhow::Error>;
-    async fn get_cluster_health_check(&self) -> Result<String, anyhow::Error>;
-    async fn get_cluster_unstable_index_infos(
-        &self,
-        cluster_status: &str,
-    ) -> Result<(), anyhow::Error>;
-
-    async fn get_nodes_stats_handle(
-        &self,
-        metric_vec: &mut Vec<MetricInfo>,
-        cur_utc_time_str: &str,
-    ) -> Result<(), anyhow::Error>;
-    async fn get_index_stats_handle(
-        &self,
-        index_name: &str,
-        cur_utc_time_str: &str,
-    ) -> Result<IndexMetricInfo, anyhow::Error>;
-    async fn get_cat_shards_handle(
-        &self,
-        metric_vec: &mut Vec<MetricInfo>,
-    ) -> Result<(), anyhow::Error>;
-    async fn get_cat_thread_pool_handle(
-        &self,
-        metric_vec: &mut Vec<MetricInfo>,
-    ) -> Result<(), anyhow::Error>;
-    async fn post_cluster_nodes_infos(&self) -> Result<(), anyhow::Error>;
-    async fn send_alarm_infos<T: MessageFormatter + Sync + Send>(
-        &self,
-        msg_fmt: &T,
-    ) -> Result<(), anyhow::Error>;
-    async fn post_cluster_index_infos(&self) -> Result<(), anyhow::Error>;
-    async fn send_alarm_urgent_infos(&self) -> Result<(), anyhow::Error>;
-}
+use crate::traits::metric_service_trait::*;
+use crate::traits::es_repository_trait::*;
+use crate::traits::smtp_repository_trait::*;
 
 #[derive(Clone, Debug)]
 pub struct MetricServicePub<R: EsRepository> {
@@ -75,8 +41,8 @@ impl<R: EsRepository> MetricServicePub<R> {
     }
 }
 
-#[async_trait]
-impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
+/* private function 선언부 */
+impl<R: EsRepository + Sync + Send> MetricServicePub<R> {
     
     #[doc = "인덱스 뒤에 금일 날짜를 추가해주는 함수"]
     /// # Arguments
@@ -90,10 +56,14 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         Ok(format!(
             "{}{}",
             index_name,
-            //self.elastic_obj.get_cluster_index_urgent_pattern(),
             date
         ))
     }
+} 
+
+
+#[async_trait]
+impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
     
     #[doc = "문제가 발생했을 때 알람을 보내주는 함수."]
     /// # Arguments

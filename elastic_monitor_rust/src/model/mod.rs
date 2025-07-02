@@ -1,5 +1,3 @@
-pub mod cluster_config;
-pub mod cluster_info;
 pub mod config;
 pub mod elastic_dto;
 pub mod index_config;
@@ -15,3 +13,4 @@ pub mod telegram_config;
 pub mod thread_pool_stat;
 pub mod urgent_dto;
 pub mod use_case_config;
+pub mod cluster_dto;

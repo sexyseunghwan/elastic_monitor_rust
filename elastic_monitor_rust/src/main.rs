@@ -51,8 +51,12 @@ use repository::es_repository::*;
 
 mod env_configuration;
 
+mod traits;
+
 #[tokio::main]
 async fn main() {
+    
+    /* config 설정 전역 적용 */
     dotenv().ok();
 
     /* 전역 로거설정 */

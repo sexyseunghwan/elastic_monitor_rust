@@ -10,6 +10,8 @@ use crate::utils_modules::io_utils::*;
 
 use crate::env_configuration::env_config::*;
 
+use crate::traits::smtp_repository_trait::*;
+
 #[doc = "전역 SMTP 통신 인스턴스를 선언"]
 static SMTP_REPO: once_lazy<Arc<SmtpRepositoryPub>> = once_lazy::new(|| initialize_smtp_clients());
 
@@ -42,20 +44,6 @@ pub fn initialize_smtp_clients() -> Arc<SmtpRepositoryPub> {
 #[doc = "SMTP를 Thread-safe 하게 이용하는 함수."]
 pub fn get_smtp_repo() -> Arc<SmtpRepositoryPub> {
     Arc::clone(&SMTP_REPO)
-}
-
-#[async_trait]
-pub trait SmtpRepository {
-    async fn send_message_to_receiver_html(
-        &self,
-        email_id: &str,
-        subject: &str,
-        html_content: &str,
-    ) -> Result<(), anyhow::Error>;
-    async fn send_message_to_receivers(
-        &self,
-        send_email_form: &HtmlContents,
-    ) -> Result<(), anyhow::Error>;
 }
 
 #[derive(Serialize, Deserialize, Debug, Getters, new)]

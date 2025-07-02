@@ -1,6 +1,6 @@
 use crate::common::*;
 
-use crate::service::metrics_service::*;
+use crate::traits::metric_service_trait::*;
 
 use crate::model::{config::*, use_case_config::*};
 
