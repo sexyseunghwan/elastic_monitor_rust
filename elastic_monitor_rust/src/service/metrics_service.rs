@@ -29,6 +29,7 @@ use crate::traits::metric_service_trait::*;
 use crate::traits::es_repository_trait::*;
 use crate::traits::smtp_repository_trait::*;
 
+//
 #[derive(Clone, Debug)]
 pub struct MetricServicePub<R: EsRepository> {
     elastic_obj: R,
@@ -670,7 +671,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 }
             }
         });
-        
+
         let urgent_infos: Vec<UrgentInfo> = self
             .elastic_obj
             .get_search_query::<UrgentInfo>(&query, &index_name)
