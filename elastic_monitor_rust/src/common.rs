@@ -1,6 +1,5 @@
 pub use std::{
     collections::HashMap,
-    env,
     fs::File,
     future::Future,
     io::BufReader,
@@ -48,7 +47,7 @@ pub use async_trait::async_trait;
 
 pub use once_cell::sync::Lazy as once_lazy;
 
-pub use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
+pub use chrono::{DateTime, NaiveDateTime, Utc};
 
 pub use lettre::{
     message::{MultiPart, SinglePart},
