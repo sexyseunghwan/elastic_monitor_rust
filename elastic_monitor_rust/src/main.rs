@@ -28,7 +28,7 @@ History     : 2024-10-02 Seunghwan Shin       # [v.1.0.0] first create
                                                 2) refresh, flush, translog 지표도 모니터링 추가
                                                 3) Index 별로 모니터링 추가
               2025-06-24 Seunghwan Shin       # [v.1.11.0] thread_pool 지표 모니터링 추가
-              2025-07-01 Seunghwan Shin       # [v.1.12.0] TCP CLOSE WAIT값 즉각적으로 모니터링 알람 추가
+              2025-07-02 Seunghwan Shin       # [v.1.12.0] TCP CLOSE WAIT값 즉각적으로 모니터링 알람 추가
 */
 mod common;
 use common::*;
@@ -121,7 +121,7 @@ async fn main() {
             info!("Exit Program");
             break; /* Test code */
         }
-
+        
         info!("Pending Program...");
         std_sleep(Duration::from_secs(10)); /* 10초 마다 탐색 -> 무한루프가 돌고 있으므로. */
     }

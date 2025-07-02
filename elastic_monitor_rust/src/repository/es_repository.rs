@@ -22,6 +22,7 @@ pub fn initialize_db_clients() -> Result<Vec<EsRepositoryPub>, anyhow::Error> {
         let es_helper: EsRepositoryPub = EsRepositoryPub::new(
             &config.cluster_name,
             config.hosts.clone(),
+            config.monitor_target_hosts.clone(),
             &config.es_id,
             &config.es_pw,
             &config.index_pattern,
@@ -40,6 +41,7 @@ pub fn initialize_db_clients() -> Result<Vec<EsRepositoryPub>, anyhow::Error> {
 pub struct EsRepositoryPub {
     pub cluster_name: String,
     pub es_clients: Vec<Arc<EsClient>>,
+    pub monitor_target_hosts: Vec<String>,
     pub index_pattern: String,
     pub per_index_pattern: String,
     pub urgent_index_pattern: String,
@@ -56,6 +58,7 @@ impl EsRepositoryPub {
     /// # Arguments
     /// * `cluster_name`        - Elasticsearch Cluster 이름
     /// * `hosts`               - Elasticsearch host 주소 벡터
+    /// * `monitor_target_hosts`- Elasticsearch monitoring target host 아이피주소
     /// * `es_id`               - Elasticsearch 계정정보 - 아이디
     /// * `es_pw`               - Elasticsearch 계정정보 - 비밀번호
     /// * `log_index_pattern`   - Elasticsearch 의 지표정보를 저장해줄 인덱스 패턴 이름
@@ -67,6 +70,7 @@ impl EsRepositoryPub {
     pub fn new(
         cluster_name: &str,
         hosts: Vec<String>,
+        monitor_target_hosts: Vec<String>,
         es_id: &str,
         es_pw: &str,
         log_index_pattern: &str,
@@ -96,6 +100,7 @@ impl EsRepositoryPub {
         Ok(EsRepositoryPub {
             cluster_name: cluster_name.to_string(),
             es_clients,
+            monitor_target_hosts,
             index_pattern: log_index_pattern.to_string(),
             per_index_pattern: per_index_pattern.to_string(),
             urgent_index_pattern: urgent_index_pattern.to_string(),
@@ -472,6 +477,11 @@ impl EsRepository for EsRepositoryPub {
         hosts
     }
 
+    #[doc = "cluster에 존재하는 모든 모니터링 대상 host 주소를 반환해주는 함수"]
+    fn get_cluster_all_monitor_host_infos(&self) -> Vec<String> {
+        self.monitor_target_hosts().clone()
+    }
+    
     #[doc = "Cluster 정보를 맵핑해줄 index pattern 형식을 반환."]
     fn get_cluster_index_pattern(&self) -> String {
         self.index_pattern.to_string()

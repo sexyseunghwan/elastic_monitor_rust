@@ -18,6 +18,7 @@ pub trait EsRepository {
     ) -> Result<Vec<T>, anyhow::Error>;
     fn get_cluster_name(&self) -> String;
     fn get_cluster_all_host_infos(&self) -> Vec<String>;
+    fn get_cluster_all_monitor_host_infos(&self) -> Vec<String>;
     fn get_cluster_index_pattern(&self) -> String;
     fn get_cluster_index_monitoring_pattern(&self) -> String;
     fn get_cluster_index_urgent_pattern(&self) -> String;

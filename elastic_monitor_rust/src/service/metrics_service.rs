@@ -182,7 +182,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
 
         let msg_fmt: MessageFormatterIndex = MessageFormatterIndex::new(
             self.elastic_obj.get_cluster_name(),
-            self.elastic_obj.get_cluster_all_host_infos(),
+            self.elastic_obj.get_cluster_all_host_infos(), 
             String::from(format!(
                 "Elasticsearch Cluster health is [{}]",
                 cluster_status
@@ -612,7 +612,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         let cluster_name: String = self.elastic_obj.get_cluster_name();
 
         let now: NaiveDateTime = get_currnet_utc_naivedatetime();
-        let past: NaiveDateTime = now - chrono::Duration::seconds(20);
+        let past: NaiveDateTime = now - chrono::Duration::seconds(1000000);
 
         let now_str: String = format_datetime(now)?;
         let past_str: String = format_datetime(past)?;
@@ -621,18 +621,47 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         let index_name: String = self
             .get_today_index_name(self.elastic_obj.get_cluster_index_urgent_pattern().as_str(),now)?;
         
-        /* 긴근 모니터링 구성 로딩 */
+        /* 긴급 모니터링 구성 로딩 */
         let urgent_configs: UrgentConfigList =
             read_toml_from_file::<UrgentConfigList>(&URGENT_CONFIG_PATH)?;
+        
+        /* 긴급 지표 모니터링 대상이 되는 노드 아이피 주소 */
+        let host_ip: Vec<String> = self.elastic_obj.get_cluster_all_monitor_host_infos()
+            .iter()
+            .map(|host_info| {
+                host_info
+                    .split_once(':')
+                    .map(|(host, _)| host.to_string()) 
+                    .unwrap_or_else(|| host_info.to_string()) 
+            })
+            .collect();
+        
+        /* elasticsearch shoul query */
+        let should_terms: Vec<Value> = host_ip
+            .iter()
+            .map(|ip| json!({ "term": { "host": ip } }))
+            .collect();
 
         /* 엘라스틱 서치 쿼리를 통해서 최근 20초동안 urgent 지표를 확인해준다. */
         let query: Value = json!({
             "query": {
-                "range": {
-                    "timestamp": {
-                        "gte": past_str,
-                        "lte": now_str
-                    }
+                "bool": {
+                    "must": [
+                        {
+                            "range": {
+                                "timestamp": {
+                                    "gte": past_str,
+                                    "lte": now_str
+                                }
+                            }
+                        },
+                        {
+                            "bool": {
+                                "should": should_terms,
+                                "minimum_should_match": 1
+                            }
+                        }
+                    ]
                 }
             }
         });

@@ -4,6 +4,7 @@ use crate::common::*;
 pub struct ClusterInfo {
     pub cluster_name: String,
     pub hosts: Vec<String>,
+    pub monitor_target_hosts: Vec<String>,
     pub es_id: String,
     pub es_pw: String,
     pub index_pattern: String,
