@@ -14,11 +14,11 @@ use crate::model::message_formatter_dto::message_formatter::*;
 use crate::model::message_formatter_dto::message_formatter_index::*;
 use crate::model::message_formatter_dto::message_formatter_node::*;
 use crate::model::message_formatter_dto::message_formatter_urgent::*;
-use crate::model::metric_info::*;
 use crate::model::thread_pool_stat::*;
 use crate::model::urgent_dto::urgent_config::*;
 use crate::model::urgent_dto::urgent_info::*;
 use crate::model::use_case_config::*;
+use crate::model::monitoring::{breaker_info::*, metric_info::*, segment_info::*};
 
 use crate::repository::smtp_repository::*;
 use crate::repository::tele_bot_repository::*;
@@ -60,6 +60,54 @@ impl<R: EsRepository + Sync + Send> MetricServicePub<R> {
             date
         ))
     }
+
+    #[doc = "breaker 모니터링 정보를 수집해주기 위한 함수"]
+    /// # Arguments
+    /// * `node_info` - 모니터링 정보들
+    /// * `name` - 상세 모니터링 필드 이름
+    ///
+    /// # Returns
+    /// * Result<BreakerInfo, anyhow::Error>
+    fn get_breaker_info(&self, node_info: &Value, name: &str) -> Result<BreakerInfo, anyhow::Error> {
+        let prefix: String = format!("breakers.{}", name);
+
+        let limit_size_in_bytes: u64 = get_value_by_path(node_info, &format!("{}.limit_size_in_bytes", prefix))?;
+        let estimated_size_in_bytes: u64 = get_value_by_path(node_info, &format!("{}.estimated_size_in_bytes", prefix))?;
+        let tripped: u64 = get_value_by_path(node_info, &format!("{}.tripped", prefix))?;
+        Ok(BreakerInfo::new(limit_size_in_bytes, estimated_size_in_bytes, tripped))
+    }
+
+    #[doc = "segment 모니터링 정보를 수집해주기 위한 함수"]
+    /// # Arguments
+    /// * `node_info` - 모니터링 정보들
+    ///
+    /// # Returns
+    /// * Result<SegmentInfo, anyhow::Error>
+    fn get_segment_info(&self, node_info: &Value) -> Result<SegmentInfo, anyhow::Error> {
+
+        let segment_count: u64 = get_value_by_path(node_info, "indices.segments.count")?;
+        let segment_memory_in_byte: u64 = get_value_by_path(node_info, "indices.segments.memory_in_bytes")?;
+        let segment_terms_memory_in_bytes: u64 = get_value_by_path(node_info, "indices.segments.terms_memory_in_bytes")?;
+        let segment_stored_fields_memory_in_bytes: u64 = get_value_by_path(node_info, "indices.segments.stored_fields_memory_in_bytes")?;
+        let segment_term_vectors_memory_in_bytes: u64 = get_value_by_path(node_info, "indices.segments.term_vectors_memory_in_bytes")?;
+        let segment_norms_memory_in_byte: u64 = get_value_by_path(node_info, "indices.segments.norms_memory_in_bytes")?;
+        let segment_points_memory_in_bytes: u64 = get_value_by_path(node_info, "indices.segments.points_memory_in_bytes")?;
+        let segment_doc_values_memory_in_bytes: u64 = get_value_by_path(node_info, "indices.segments.doc_values_memory_in_bytes")?;
+        let segment_index_writer_memory_in_bytes: u64 = get_value_by_path(node_info, "indices.segments.index_writer_memory_in_bytes")?;
+        let segment_version_map_memory_in_bytes: u64 = get_value_by_path(node_info, "indices.segments.version_map_memory_in_bytes")?;
+        let segment_fixed_bit_set_memory_in_bytes: u64 = get_value_by_path(node_info, "indices.segments.fixed_bit_set_memory_in_bytes")?;
+
+        Ok(
+            SegmentInfo::new(
+                segment_count, segment_memory_in_byte, segment_terms_memory_in_bytes, segment_stored_fields_memory_in_bytes, segment_term_vectors_memory_in_bytes,
+                segment_norms_memory_in_byte, segment_points_memory_in_bytes, segment_doc_values_memory_in_bytes, segment_index_writer_memory_in_bytes,
+                segment_version_map_memory_in_bytes, segment_fixed_bit_set_memory_in_bytes
+            )
+        )
+    }
+
+
+
 } 
 
 
@@ -208,7 +256,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         metric_vec: &mut Vec<MetricInfo>,
         cur_utc_time_str: &str,
     ) -> Result<(), anyhow::Error> {
-        let query_fields: [&str; 5] = ["fs", "jvm", "indices", "os", "http"];
+        let query_fields: [&str; 6] = ["fs", "jvm", "indices", "os", "http", "breaker"];
 
         /* GET /_nodes/stats */
         let get_nodes_stats: Value = self.elastic_obj.get_node_stats(&query_fields).await?;
@@ -310,6 +358,17 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 let refresh_listener: i64 =
                     get_value_by_path(node_info, "indices.refresh.listeners")?;
 
+                /* off-heap 메모리 관리를 위한 모니터링 코드 추가 */
+                let segment_infos: SegmentInfo = self.get_segment_info(node_info)?;
+                
+
+                /* breaker 지표 관련 */
+                let breaker_request: BreakerInfo = self.get_breaker_info(node_info, "request")?;
+                let breaker_fielddata: BreakerInfo = self.get_breaker_info(node_info, "fielddata")?;
+                let breaker_inflight_requests: BreakerInfo = self.get_breaker_info(node_info, "inflight_requests")?;
+                let breaker_parent: BreakerInfo = self.get_breaker_info(node_info, "parent")?;                
+
+                /* 이후에 값이 들어가야 하는 필드인 경우에는 지금 해당 소스에서 0으로 초기화 한 후에 데이터를 넣어준다. */
                 let metric_info: MetricInfo = MetricInfoBuilder::default()
                     .timestamp(cur_utc_time_str.to_string())
                     .host(host.to_string())
@@ -360,6 +419,11 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                     .generic_active_thread(0)
                     .generic_thread_queue(0)
                     .generic_rejected_thread(0)
+                    .segment_infos(segment_infos)
+                    .breaker_request(breaker_request)
+                    .breaker_fielddata(breaker_fielddata)
+                    .breaker_inflight_requests(breaker_inflight_requests)
+                    .breaker_parent(breaker_parent)
                     .build()?;
 
                 metric_vec.push(metric_info);

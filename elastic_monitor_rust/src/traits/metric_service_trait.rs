@@ -2,7 +2,7 @@ use crate::common::*;
 
 use crate::model::index_metric_info::*;
 use crate::model::message_formatter_dto::message_formatter::*;
-use crate::model::metric_info::*;
+use crate::model::monitoring::metric_info::*;
 
 #[async_trait]
 pub trait MetricService {

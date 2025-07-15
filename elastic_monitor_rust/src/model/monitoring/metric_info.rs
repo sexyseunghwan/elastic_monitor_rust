@@ -1,5 +1,7 @@
 use crate::common::*;
 
+use crate::model::monitoring::{breaker_info::*, segment_info::*};
+
 #[derive(Builder, Clone, Serialize, Deserialize, Debug, Getters, new)]
 #[getset(get = "pub", set = "pub")]
 pub struct MetricInfo {
@@ -52,4 +54,9 @@ pub struct MetricInfo {
     pub generic_active_thread: u32,
     pub generic_thread_queue: u32,
     pub generic_rejected_thread: u32,
+    pub segment_infos: SegmentInfo,
+    pub breaker_request: BreakerInfo,
+    pub breaker_fielddata: BreakerInfo,
+    pub breaker_inflight_requests: BreakerInfo,
+    pub breaker_parent: BreakerInfo  
 }
