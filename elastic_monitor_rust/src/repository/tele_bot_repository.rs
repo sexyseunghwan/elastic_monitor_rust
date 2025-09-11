@@ -1,14 +1,14 @@
 use crate::common::*;
 
-use crate::model::config::*;
-use crate::model::telegram_config::*;
+use crate::model::configs::config::*;
+use crate::model::configs::telegram_config::*;
 
 /* 전역 Telebot 인스턴스를 선언 */
 static TELEGRAM_REPO: once_lazy<Arc<TelebotRepositoryPub>> =
-    once_lazy::new(|| initialize_tele_bot_client());
+    once_lazy::new(initialize_tele_bot_client);
 
 /* Client 를 전역적으로 사용하기 위한 변수 선언 */
-static REQ_CLIENT: once_lazy<Client> = once_lazy::new(|| Client::new());
+static REQ_CLIENT: once_lazy<Client> = once_lazy::new(Client::new);
 
 #[doc = "Telebot 을 전역적으로 초기화 함."]
 pub fn initialize_tele_bot_client() -> Arc<TelebotRepositoryPub> {

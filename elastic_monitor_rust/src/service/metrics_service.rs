@@ -5,31 +5,25 @@ use crate::utils_modules::io_utils::*;
 use crate::utils_modules::json_utils::*;
 use crate::utils_modules::time_utils::*;
 
-use crate::model::config::*;
 use crate::model::index_config::*;
 use crate::model::index_info::*;
 use crate::model::index_metric_info::*;
 use crate::model::indicies::*;
-use crate::model::message_formatter_dto::message_formatter::*;
-use crate::model::message_formatter_dto::message_formatter_index::*;
-use crate::model::message_formatter_dto::message_formatter_node::*;
 use crate::model::message_formatter_dto::message_formatter_urgent::*;
 use crate::model::thread_pool_stat::*;
 use crate::model::urgent_dto::urgent_config::*;
 use crate::model::urgent_dto::urgent_info::*;
-use crate::model::use_case_config::*;
 use crate::model::monitoring::{breaker_info::*, metric_info::*, segment_info::*};
 
-use crate::repository::smtp_repository::*;
-use crate::repository::tele_bot_repository::*;
+use crate::repository::es_repository::*;
+
 
 use crate::env_configuration::env_config::*;
 
 use crate::traits::metric_service_trait::*;
 use crate::traits::es_repository_trait::*;
-use crate::traits::smtp_repository_trait::*;
 
-//
+
 #[derive(Clone, Debug)]
 pub struct MetricServicePub<R: EsRepository> {
     elastic_obj: R,
@@ -105,6 +99,61 @@ impl<R: EsRepository + Sync + Send> MetricServicePub<R> {
             )
         )
     }
+    
+    #[doc = "클러스터의 host 정보만 리턴해주는 함수 -> 포트정보는 제외."]
+    fn extract_host_ips(&self) -> Vec<String> {
+        self.elastic_obj.get_cluster_all_host_infos()
+            .iter()
+            .map(|host_info| {
+                host_info
+                    .split_once(':')
+                    .map(|(host, _)| host.to_string()) 
+                    .unwrap_or_else(|| host_info.to_string()) 
+            })
+            .collect()
+    }
+
+
+    #[doc = "긴급지표 쿼리 생성자."]
+    /// # Arguments
+    /// * `host_ips` - 클러스터 내부 노드 아이피주소
+    /// * `past_str` - 쿼리 필터링 시작일
+    /// * `now_str`  - 쿼리필터링 종료일
+    ///
+    /// # Returns
+    /// * Result<(), anyhow::Error>
+    fn build_urgent_query(&self, host_ips: &[String], past_str: &str, now_str: &str) -> Value {
+
+        /* elasticsearch shoul query */
+        let should_terms: Vec<Value> = host_ips
+            .iter()
+            .map(|ip| json!({ "term": { "host": ip } }))
+            .collect();
+
+        /* 엘라스틱 서치 쿼리를 통해서 최근 20초동안 urgent 지표를 확인해준다. */
+        json!({
+            "query": {
+                "bool": {
+                    "must": [
+                        {
+                            "range": {
+                                "timestamp": {
+                                    "gte": past_str,
+                                    "lte": now_str
+                                }
+                            }
+                        },
+                        {
+                            "bool": {
+                                "should": should_terms,
+                                "minimum_should_match": 1
+                            }
+                        }
+                    ]
+                }
+            }
+        })
+    }
 
 
 
@@ -113,35 +162,23 @@ impl<R: EsRepository + Sync + Send> MetricServicePub<R> {
 
 #[async_trait]
 impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
-    
-    #[doc = "문제가 발생했을 때 알람을 보내주는 함수."]
-    /// # Arguments
-    /// * `msg_fmt` - 메시지 포멧터 트레잇
-    ///
-    /// # Returns
-    /// * Result<(), anyhow::Error>
-    async fn send_alarm_infos<T: MessageFormatter + Sync + Send>(
-        &self,
-        msg_fmt: &T,
-    ) -> Result<(), anyhow::Error> {
-        /* Telegram 메시지 Send */
-        let tele_service: Arc<TelebotRepositoryPub> = get_telegram_repo();
-        let telegram_format: String = msg_fmt.get_telegram_format();
-        tele_service.bot_send(telegram_format.as_str()).await?;
 
-        /* Email 전송 */
-        let smtp_repo: Arc<SmtpRepositoryPub> = get_smtp_repo();
-        let email_format: HtmlContents = msg_fmt.get_email_format();
-        smtp_repo.send_message_to_receivers(&email_format).await?;
 
-        Ok(())
+    #[doc = "현재 cluster 의 이름을 반환해주는 함수"]
+    fn get_cluster_name(&self) -> String {
+        self.elastic_obj.get_cluster_name()
+    }
+
+    #[doc = "현재 Cluster 내의 모든 호스트들을 반환해주는 함수."]
+    fn get_cluster_all_host_infos(&self) -> Vec<String> {
+        self.elastic_obj.get_cluster_all_host_infos()
     }
 
     #[doc = "Elasticsearch 클러스터 내의 각 노드의 상태를 체크해주는 함수"]
-    async fn get_cluster_node_check(&self) -> Result<(), anyhow::Error> {
+    async fn get_cluster_node_check(&self) -> Result<Vec<String>, anyhow::Error> {
         /* Vec<(host 주소, 연결 유무)> */
         let conn_stats: Vec<(String, bool)> = self.elastic_obj.get_node_conn_check().await;
-
+        
         let conn_fail_hosts: Vec<String> = conn_stats
             .into_iter()
             .filter_map(
@@ -155,18 +192,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
             )
             .collect();
 
-        if !conn_fail_hosts.is_empty() {
-            let msg_fmt: MessageFormatterNode = MessageFormatterNode::new(
-                self.elastic_obj.get_cluster_name(),
-                conn_fail_hosts,
-                String::from("Elasticsearch Connection Failed"),
-                String::from("The connection of these hosts has been LOST."),
-            );
-
-            self.send_alarm_infos(&msg_fmt).await?;
-        }
-
-        Ok(())
+        Ok(conn_fail_hosts)
     }
 
     #[doc = "Cluster 의 상태를 반환해주는 함수 -> green, yellow, red"]
@@ -183,16 +209,9 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
     }
 
     #[doc = "Elasticsearch Cluster Health 가 불안정한 경우 - 불안정한 인덱스들을 추출하는 함수"]
-    async fn get_cluster_unstable_index_infos(
-        &self,
-        cluster_status: &str,
-    ) -> Result<(), anyhow::Error> {
+    async fn get_cluster_unstable_index_infos(&self) -> Result<Vec<Indicies>, anyhow::Error> {
         let cluster_stat_resp: String = self.elastic_obj.get_indices_info().await?;
         let unstable_indicies: Lines<'_> = cluster_stat_resp.trim().lines();
-
-        /* 현재 프로그램 실행환경 구분 */
-        let use_case_binding: Arc<UseCaseConfig> = get_usecase_config_info();
-        let use_case: &str = use_case_binding.use_case().as_str();
 
         /* 인덱스 상태 확인 및 벡터 생성 */
         let mut err_index_detail: Vec<Indicies> = Vec::new();
@@ -205,18 +224,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 _ => continue,
             };
 
-            /* 개발환경, 운영환경 코드 구분 */
-            // let is_unstable: bool = match use_case {
-            //     "dev" => *health == "red" || *status == "open",
-            //     "prod" => *health != "green" || *status != "open",
-            //     _ => false,
-            // };
-
-            let is_unstable: bool = match use_case {
-                "dev" => *health != "green" || *status != "open",
-                "prod" => *health != "green" || *status != "open",
-                _ => false,
-            };
+            let is_unstable: bool = *health != "green" || *status != "open";
 
             if is_unstable {
                 err_index_detail.push(Indicies::new(
@@ -224,25 +232,14 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                     health.to_uppercase(),
                     status.to_uppercase(),
                 ));
-            }
+            } 
         }
 
         err_index_detail.sort_by(|a, b| a.index_name.cmp(&b.index_name));
 
-        let msg_fmt: MessageFormatterIndex = MessageFormatterIndex::new(
-            self.elastic_obj.get_cluster_name(),
-            self.elastic_obj.get_cluster_all_host_infos(), 
-            String::from(format!(
-                "Elasticsearch Cluster health is [{}]",
-                cluster_status
-            )),
-            err_index_detail,
-        );
+        Ok(err_index_detail)
 
-        self.send_alarm_infos(&msg_fmt).await?;
-
-        Ok(())
-    }
+    } 
 
     #[doc = "GET /_nodes/stats 정보들을 핸들링 해주는 함수"]
     /// # Arguments
@@ -365,9 +362,14 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 /* breaker 지표 관련 */
                 let breaker_request: BreakerInfo = self.get_breaker_info(node_info, "request")?;
                 let breaker_fielddata: BreakerInfo = self.get_breaker_info(node_info, "fielddata")?;
-                let breaker_inflight_requests: BreakerInfo = self.get_breaker_info(node_info, "inflight_requests")?;
+                /* 8.x 버전 */
+                //let breaker_inflight_requests: BreakerInfo = self.get_breaker_info(node_info, "inflight_requests")?;
+                
+                /* 7.x 버전 */
+                let breaker_inflight_requests: BreakerInfo = self.get_breaker_info(node_info, "in_flight_requests")?;
+                
                 let breaker_parent: BreakerInfo = self.get_breaker_info(node_info, "parent")?;                
-
+                
                 /* 이후에 값이 들어가야 하는 필드인 경우에는 지금 해당 소스에서 0으로 초기화 한 후에 데이터를 넣어준다. */
                 let metric_info: MetricInfo = MetricInfoBuilder::default()
                     .timestamp(cur_utc_time_str.to_string())
@@ -513,7 +515,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
             let host_ip: String = metric_info.host().clone();
             let shard_cnt: &mut i64 = host_map.entry(host_ip).or_insert(0);
 
-            metric_info.node_shard_cnt = shard_cnt.clone();
+            metric_info.node_shard_cnt = *shard_cnt;
         }
 
         Ok(())
@@ -556,7 +558,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
 
         for stat in thread_pool_stats {
             map.entry(stat.node_name().clone())
-                .or_insert(Vec::new())
+                .or_default()
                 .push(stat);
         }
 
@@ -618,9 +620,13 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         let now: NaiveDateTime = get_currnet_utc_naivedatetime();
         let now_str: String = format_datetime(now)?;
 
+        let cluster_index_pattern: String = self.elastic_obj
+            .get_cluster_index_pattern()
+            .ok_or_else(|| anyhow!("[ERROR][MetricServicePub->post_cluster_nodes_infos] cluster_index_pattern is empty"))?;
+        
         /* 날짜 기준으로 인덱스 이름 맵핑 */
         let index_name: String = self
-            .get_today_index_name(self.elastic_obj.get_cluster_index_pattern().as_str(), now)?;
+            .get_today_index_name(&cluster_index_pattern, now)?;
 
         /* 1. GET /_nodes/stats */
         self.get_nodes_stats_handle(&mut metric_vec, &now_str)
@@ -634,7 +640,10 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
 
         for metric in metric_vec {
             let document: Value = serde_json::to_value(&metric)?;
-            self.elastic_obj.post_doc(&index_name, document).await?;
+            //self.elastic_obj.post_doc(&index_name, document).await?;
+            /* 모니터링 ES 에 POST 해줌 */
+            let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
+            mon_es.post_doc(&index_name, document).await?;
         }
 
         Ok(())
@@ -647,9 +656,13 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
         let now: NaiveDateTime = get_currnet_utc_naivedatetime();
         let now_str: String = format_datetime(now)?;
 
+        let cluster_index_monitor_pattern: String = self.elastic_obj
+            .get_cluster_index_monitoring_pattern()
+            .ok_or_else(|| anyhow!("[ERROR][MetricServicePub->post_cluster_index_infos] cluster_index_monitor_pattern is empty"))?;
+
         /* 인덱스 이름 생성 */ 
         let index_name: String = self
-            .get_today_index_name(self.elastic_obj.get_cluster_index_monitoring_pattern().as_str(), now)?;
+            .get_today_index_name(&cluster_index_monitor_pattern, now)?;
 
         let monitor_indexies: IndexConfig =
             read_toml_from_file::<IndexConfig>(&ELASTIC_INDEX_INFO_PATH)?;
@@ -666,88 +679,54 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                 .await?;
 
             let document: Value = serde_json::to_value(&index_matric_info)?;
-            self.elastic_obj.post_doc(&index_name, document).await?;
+            //self.elastic_obj.post_doc(&index_name, document).await?;
+            let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
+            mon_es.post_doc(&index_name, document).await?;
         }
 
         Ok(())
     }
     
-    #[doc = "긴급한 지표를 모니터링 한 뒤 알람을 보내주는 함수"]
-    async fn send_alarm_urgent_infos(&self) -> Result<(), anyhow::Error> {
-        let cluster_name: String = self.elastic_obj.get_cluster_name();
-
-        let now: NaiveDateTime = get_currnet_utc_naivedatetime();
-        let past: NaiveDateTime = now - chrono::Duration::seconds(20);
+    #[doc = "긴급한 지표를 모니터링한 후 반환해주는 함수"]
+    async fn get_alarm_urgent_infos(&self) -> Result<Vec<UrgentAlarmInfo>, anyhow::Error> {
         
-        let now_str: String = format_datetime(now)?;
-        let past_str: String = format_datetime(past)?;
+        //let mut urgent_alarm_infos: Vec<UrgentAlarmInfo> = Vec::new();
+        let (now, _past, now_str, past_str) = make_time_range(20)?;
+        
+        let cluster_index_urgent_pattern: String = self.elastic_obj
+            .get_cluster_index_urgent_pattern()
+            .ok_or_else(|| anyhow!("[ERROR][MetricServicePub->get_alarm_urgent_infos] cluster_index_monitor_pattern is empty"))?;
 
         /* 인덱스 이름 생성 */ 
         let index_name: String = self
-            .get_today_index_name(self.elastic_obj.get_cluster_index_urgent_pattern().as_str(),now)?;
+            .get_today_index_name(&cluster_index_urgent_pattern ,now)?;
         
         /* 긴급 모니터링 구성 로딩 */
         let urgent_configs: UrgentConfigList =
             read_toml_from_file::<UrgentConfigList>(&URGENT_CONFIG_PATH)?;
         
         /* 긴급 지표 모니터링 대상이 되는 노드 아이피 주소 */
-        let host_ips: Vec<String> = self.elastic_obj.get_cluster_all_monitor_host_infos()
-            .iter()
-            .map(|host_info| {
-                host_info
-                    .split_once(':')
-                    .map(|(host, _)| host.to_string()) 
-                    .unwrap_or_else(|| host_info.to_string()) 
-            })
-            .collect();
+        let host_ips: Vec<String> = self.extract_host_ips();
         
         if host_ips.is_empty() {
             warn!("[Warn][MetricService->send_alarm_urgent_infos] No host IPs found. Skipping query.");
-            return Ok(());
+            return Ok(vec![]);
         }
-
-        /* elasticsearch shoul query */
-        let should_terms: Vec<Value> = host_ips
-            .iter()
-            .map(|ip| json!({ "term": { "host": ip } }))
-            .collect();
-
-        /* 엘라스틱 서치 쿼리를 통해서 최근 20초동안 urgent 지표를 확인해준다. */
-        let query: Value = json!({
-            "query": {
-                "bool": {
-                    "must": [
-                        {
-                            "range": {
-                                "timestamp": {
-                                    "gte": past_str,
-                                    "lte": now_str
-                                }
-                            }
-                        },
-                        {
-                            "bool": {
-                                "should": should_terms,
-                                "minimum_should_match": 1
-                            }
-                        }
-                    ]
-                }
-            }
-        });
-
-        let urgent_infos: Vec<UrgentInfo> = self
-            .elastic_obj
+        
+        /* 긴급 지표를 쿼리하기 위함. */
+        let query: Value = self.build_urgent_query(&host_ips, &past_str, &now_str);
+        let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
+        let urgent_infos: Vec<UrgentInfo> = mon_es
             .get_search_query::<UrgentInfo>(&query, &index_name)
             .await?;
 
         if urgent_infos.is_empty() {
             info!("[Info][MetricService->send_alarm_urgent_infos] The `urgent_infos` vector is empty.");
-            return Ok(());
+            return Ok(vec![]);
         }
-
+        
         /* 알람 대상 필터링 */ 
-        let alarm_targets: Vec<UrgentAlarmInfo> = urgent_infos
+        let urgent_alarm_infos: Vec<UrgentAlarmInfo> = urgent_infos
             .iter()
             .flat_map(|info| {
                 urgent_configs
@@ -774,16 +753,10 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServicePub<R> {
                         }
                     })
             })
-            .collect();
+            .collect();     
         
-        if alarm_targets.is_empty() {
-            info!("[Info][MetricService->send_alarm_urgent_infos] No emergency monitoring indicators exist that require an alarm.");
-            return Ok(());
-        }
-
-        let msg: MessageFormatterUrgent = MessageFormatterUrgent::new(cluster_name, alarm_targets);
-        self.send_alarm_infos(&msg).await?;
-
-        Ok(())
+        Ok(urgent_alarm_infos)
     }
+
+
 }

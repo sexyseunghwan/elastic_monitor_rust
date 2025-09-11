@@ -2,9 +2,9 @@ use crate::common::*;
 
 use crate::utils_modules::io_utils::*;
 
-use crate::model::smtp_config::*;
-use crate::model::telegram_config::*;
-use crate::model::use_case_config::*;
+use crate::model::configs::{
+    smtp_config::*, telegram_config::*, use_case_config::*, mon_elastic_config::*
+};
 
 use crate::env_configuration::env_config::*;
 
@@ -37,11 +37,18 @@ pub fn get_usecase_config_info() -> Arc<UseCaseConfig> {
     Arc::clone(usecase_config)
 }
 
+#[doc = "monitoring elasticsearch conn 정보"]
+pub fn get_mon_es_config_info() -> Arc<MonElasticConfig> {
+    let monitor_es_config: &Arc<MonElasticConfig> = &SERVER_CONFIG.monitor_es;
+    Arc::clone(monitor_es_config)
+}
+
 #[derive(Debug)]
 pub struct Config {
     pub smtp: Arc<SmtpConfig>,
     pub telegram: Arc<TelegramConfig>,
     pub usecase: Arc<UseCaseConfig>,
+    pub monitor_es: Arc<MonElasticConfig>
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -49,6 +56,7 @@ pub struct ConfigNotSafe {
     pub smtp: SmtpConfig,
     pub telegram: TelegramConfig,
     pub usecase: UseCaseConfig,
+    pub monitor_es: MonElasticConfig
 }
 
 impl Config {
@@ -72,6 +80,7 @@ impl Config {
             smtp: Arc::new(system_config.smtp),
             telegram: Arc::new(system_config.telegram),
             usecase: Arc::new(system_config.usecase),
+            monitor_es: Arc::new(system_config.monitor_es)
         }
     }
 }

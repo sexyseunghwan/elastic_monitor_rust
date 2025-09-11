@@ -23,3 +23,7 @@ lettre = { version = "0.11.10", default-features = false, features = ["smtp-tran
 toml = "0.8.19"
 dotenv = "0.15.0"
 derive_builder = "0.20.2"
+tiberius = { version = "0.12", features = ["sql-browser-tokio"] }
+tokio-util = "0.7"
+deadpool-tiberius = "0.1.9"
+urlencoding = "2.1"

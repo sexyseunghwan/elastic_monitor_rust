@@ -30,6 +30,13 @@ History     : 2024-10-02 Seunghwan Shin       # [v.1.0.0] first create
               2025-06-24 Seunghwan Shin       # [v.1.11.0] thread_pool 지표 모니터링 추가
               2025-07-02 Seunghwan Shin       # [v.1.12.0] TCP CLOSE WAIT값 즉각적으로 모니터링 알람 추가
               2025-07-15 Seunghwan Shin       # [v.1.13.0] off-heap 사용량 체크를 위한 지표 추가
+              2025-08-01 Seunghwan Shin       # [v.2.0.0] 
+                                                1) 기존 smtp 를 걷어내고 i-mailer 를 통해서 메일 보내기 기능 추가
+                                                2) 서비스 분리원칙 적용
+              2025-08-28 Seunghwan Shin       # [v.2.1.0] 
+                                                1) 리눅스 호환가능하도록 변경
+                                                2) 개발계에서 문제가 생길경우에는 단독 메일만 보내도록 처리 
+              2025-09-00 Seunghwan Shin       # [v.2.2.0] 
 */
 mod common;
 use common::*;
@@ -41,11 +48,15 @@ mod utils_modules;
 use utils_modules::logger_utils::*;
 
 mod service;
-use service::metrics_service::*;
+use service::{
+    metrics_service::*,
+    notification_service::*
+};
 
 mod model;
-use model::config::*;
-use model::use_case_config::*;
+use model::{
+    configs::{config::*, use_case_config::*}
+};
 
 mod repository;
 use repository::es_repository::*;
@@ -65,35 +76,30 @@ async fn main() {
 
     info!("Start Elasticsearch Monitoring Program");
 
-    /* Elasticsearch DB 커넥션 정보 */
-    let es_infos_vec: Vec<EsRepositoryPub> = match initialize_db_clients() {
-        Ok(es_infos_vec) => es_infos_vec,
-        Err(e) => {
-            error!(
-                "[Error][main()] Unable to retrieve 'Elasticsearch' connection information.: {:?}",
-                e
-            );
-            panic!("{:?}", e)
-        }
-    };
-
-    /*
-        Handler 의존주입
-        - EsRepositoryPub 를 의존주입하는 이유는 각 Cluster 서버마다 모니터링 대상 Elasticsearch 서버가 다를 수 있기 때문이다.
-    */
-    let mut handlers: Vec<MainHandler<MetricServicePub<EsRepositoryPub>>> = Vec::new();
-
-    for cluster in es_infos_vec {
-        let metirc_service: MetricServicePub<EsRepositoryPub> = MetricServicePub::new(cluster);
-        let main_handler: MainHandler<MetricServicePub<EsRepositoryPub>> =
-            MainHandler::new(metirc_service);
-        handlers.push(main_handler);
-    }
+    /* 대상 Elasticsearch DB 커넥션 정보 리스트 */
+    let es_infos_vec: Vec<EsRepositoryPub> = initialize_db_clients().unwrap_or_else(|e| {
+        error!("[Error][main()] Unable to retrieve 'Elasticsearch' connection information.: {:?}", e);
+        panic!("[Error][main()] Unable to retrieve 'Elasticsearch' connection information.: {:?}", e)
+    });
 
     /* 실행환경에 따라 분류 */
     let use_case_binding: Arc<UseCaseConfig> = get_usecase_config_info();
     let use_case: &str = use_case_binding.use_case().as_str();
+    
+    /*
+        Handler 의존주입
+        - EsRepositoryPub 를 의존주입하는 이유는 각 Cluster 서버마다 모니터링 대상 Elasticsearch 서버가 다를 수 있기 때문이다.
+    */
+    let mut handlers: Vec<MainHandler<MetricServicePub<EsRepositoryPub>, NotificationServicePub>>= Vec::new();
 
+    for cluster in es_infos_vec {
+        let metirc_service: MetricServicePub<EsRepositoryPub> = MetricServicePub::new(cluster);
+        let notification_service: NotificationServicePub = NotificationServicePub::new();
+        let main_handler: MainHandler<MetricServicePub<EsRepositoryPub>, NotificationServicePub> = MainHandler::new(metirc_service, notification_service);
+        handlers.push(main_handler);
+    }
+    
+    
     /*
         Loop 처리를 통해서 계속 Metric 정보 수집.
     */
@@ -101,7 +107,7 @@ async fn main() {
         /* Async 작업 */
         let futures = handlers.iter().map(|handler| {
             async move {
-                handler.task_set().await /* 실제 Task */
+                handler.main_task_set().await /* 실제 Task */
             }
         });
 

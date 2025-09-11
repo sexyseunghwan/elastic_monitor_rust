@@ -27,7 +27,7 @@ impl MessageFormatter for MessageFormatterNode {
 
         msg_contents
     }
-
+    
     #[doc = "Email 형식에 맞게 변환"]
     fn get_email_format(&self) -> HtmlContents {
         let mut html_forms: String = String::new();

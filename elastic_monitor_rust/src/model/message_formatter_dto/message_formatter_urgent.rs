@@ -27,7 +27,7 @@ impl MessageFormatter for MessageFormatterUrgent {
         msg_contents.push_str(format!("[cluster name]\n{}\n\n", self.cluster_name).as_str());
 
         msg_contents
-                .push_str(format!("[err_subject]\n Emergency Indicator Abnormal \n\n").as_str());
+                .push_str("[err_subject]\n Emergency Indicator Abnormal \n\n".to_string().as_str());
         msg_contents
             .push_str("[err_detail]\n");
 
@@ -54,14 +54,14 @@ impl MessageFormatter for MessageFormatterUrgent {
                 "
                 <tr>
                     <td style='border: 1px solid #ddd; padding: 8px; text-align: left;'>{}</td>
-                    <td style='border: 1px solid #ddd; padding: 8px; text-align: left; color: red;'>{}</td>
-                    <td style='border: 1px solid #ddd; padding: 8px; text-align: left; color: red;'>{}</td>
+                    <td style='border: 1px solid #ddd; padding: 8px; text-align: left; color: red;'>There was a problem with '{}' indicators. </td>
+                    <td style='border: 1px solid #ddd; padding: 8px; text-align: left; color: red;'>{}: {}</td>
                     <td style='border: 1px solid #ddd; padding: 8px; text-align: left;'>{}</td>
                 </tr>
                 ",
                 self.cluster_name, 
-                format!("There was a problem with '{}' indicators. ", urgent_info.metirc_name()), 
-                format!("{}: {}", urgent_info.metirc_name(), urgent_info.metic_value_str()), 
+                urgent_info.metirc_name(), 
+                urgent_info.metirc_name(), urgent_info.metic_value_str(), 
                 urgent_info.host()
             );
 
