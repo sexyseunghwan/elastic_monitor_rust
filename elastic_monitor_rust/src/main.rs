@@ -36,7 +36,7 @@ History     : 2024-10-02 Seunghwan Shin       # [v.1.0.0] first create
               2025-08-28 Seunghwan Shin       # [v.2.1.0] 
                                                 1) 리눅스 호환가능하도록 변경
                                                 2) 개발계에서 문제가 생길경우에는 단독 메일만 보내도록 처리 
-              2025-09-00 Seunghwan Shin       # [v.2.2.0] 
+              2025-09-11 Seunghwan Shin       # [v.2.2.0] 모니터링 전용 ES 에 메트릭 수집하는 방식으로 코드 변경
 */
 mod common;
 use common::*;
@@ -85,7 +85,7 @@ async fn main() {
     /* 실행환경에 따라 분류 */
     let use_case_binding: Arc<UseCaseConfig> = get_usecase_config_info();
     let use_case: &str = use_case_binding.use_case().as_str();
-    
+
     /*
         Handler 의존주입
         - EsRepositoryPub 를 의존주입하는 이유는 각 Cluster 서버마다 모니터링 대상 Elasticsearch 서버가 다를 수 있기 때문이다.
