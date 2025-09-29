@@ -45,10 +45,8 @@ impl TelebotRepository for TelebotRepositoryImpl {
             "chat_id": self.chat_room_id,
             "text": send_msg
         });
-
-        //let client: &once_lazy<Client> = &REQ_CLIENT;
-
-        // 최대 3번의 시도를 수행
+        
+        /* 최대 3번의 시도를 수행 */ 
         for try_cnt in 0..3 {
             match self.try_send(&url, &body).await {
                 Ok(_) => {
@@ -69,7 +67,7 @@ impl TelebotRepository for TelebotRepositoryImpl {
         Err(anyhow!("[Timeout Error][bot_send()] Failed to send message after 3 attempts to the Telegram bot."))
     }
 
-    // 메시지를 직접 보내주는 함수
+    /* 메시지를 직접 보내주는 함수 */ 
     async fn try_send(&self, url: &str, body: &Value) -> Result<(), anyhow::Error> {
         let client: &once_lazy<Client> = &REQ_CLIENT;
 
