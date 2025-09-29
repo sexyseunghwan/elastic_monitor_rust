@@ -2,6 +2,7 @@ use crate::common::*;
 
 pub trait MessageFormatter {
     fn get_telegram_format(&self) -> String;
+    fn get_slack_format(&self) -> String;
     fn get_email_format(&self) -> HtmlContents;
 }
 

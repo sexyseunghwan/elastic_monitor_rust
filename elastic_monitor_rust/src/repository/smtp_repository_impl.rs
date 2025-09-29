@@ -10,13 +10,15 @@ use crate::utils_modules::io_utils::*;
 
 use crate::env_configuration::env_config::*;
 
-use crate::traits::smtp_repository_trait::*;
+use crate::traits::repository::smtp_repository::*;
 
 #[doc = "전역 SMTP 통신 인스턴스를 선언"]
-static SMTP_REPO: once_lazy<Arc<SmtpRepositoryPub>> = once_lazy::new(initialize_smtp_clients);
+#[allow(dead_code)]
+static SMTP_REPO: once_lazy<Arc<SmtpRepositoryImpl>> = once_lazy::new(initialize_smtp_clients);
 
 #[doc = "smtp 통신 객체를 초기화해주는 함수"]
-pub fn initialize_smtp_clients() -> Arc<SmtpRepositoryPub> {
+#[allow(dead_code)]
+pub fn initialize_smtp_clients() -> Arc<SmtpRepositoryImpl> {
     let smtp_config: Arc<SmtpConfig> = get_smtp_config_info();
     let email_receiver_info: &once_lazy<String> = &EMAIL_RECEIVER_PATH;
 
@@ -25,7 +27,7 @@ pub fn initialize_smtp_clients() -> Arc<SmtpRepositoryPub> {
             Ok(receiver_email_list) => receiver_email_list,
             Err(e) => {
                 error!(
-                    "[Error][initialize_smtp_clients()] Failed to object '{}' {:?}",
+                    "[initialize_smtp_clients()] Failed to object '{}' {:?}",
                     email_receiver_info.to_string(),
                     e
                 );
@@ -33,7 +35,7 @@ pub fn initialize_smtp_clients() -> Arc<SmtpRepositoryPub> {
             }
         };
 
-    Arc::new(SmtpRepositoryPub::new(
+    Arc::new(SmtpRepositoryImpl::new(
         smtp_config.smtp_name().to_string(),
         smtp_config.credential_id().to_string(),
         smtp_config.credential_pw().to_string(),
@@ -42,13 +44,14 @@ pub fn initialize_smtp_clients() -> Arc<SmtpRepositoryPub> {
 }
 
 #[doc = "SMTP를 Thread-safe 하게 이용하는 함수."]
-pub fn get_smtp_repo() -> Arc<SmtpRepositoryPub> {
+#[allow(dead_code)]
+pub fn get_smtp_repo() -> Arc<SmtpRepositoryImpl> {
     Arc::clone(&SMTP_REPO)
 }
 
 #[derive(Serialize, Deserialize, Debug, Getters, new)]
 #[getset(get = "pub")]
-pub struct SmtpRepositoryPub {
+pub struct SmtpRepositoryImpl {
     smtp_name: String,
     credential_id: String,
     credential_pw: String,
@@ -56,7 +59,7 @@ pub struct SmtpRepositoryPub {
 }
 
 #[async_trait]
-impl SmtpRepository for SmtpRepositoryPub {
+impl SmtpRepository for SmtpRepositoryImpl {
     #[doc = "수신자에게 html 형식의 이메일을 보내주는 함수"]
     async fn send_message_to_receiver_html(
         &self,
@@ -126,7 +129,7 @@ impl SmtpRepository for SmtpRepositoryPub {
             match result {
                 Ok(_) => info!("Email sent successfully"),
                 Err(e) => error!(
-                    "[Error][send_message_to_receivers()] Failed to send email: {}",
+                    "[send_message_to_receivers()] Failed to send email: {}",
                     e
                 ),
             }

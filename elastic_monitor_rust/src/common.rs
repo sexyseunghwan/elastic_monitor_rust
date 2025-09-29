@@ -10,7 +10,8 @@ pub use std::{
 
 pub use tokio::{
     time::{sleep,Duration},
-    sync::{OwnedSemaphorePermit, Semaphore}
+    sync::{OwnedSemaphorePermit, Semaphore},
+    join
 };
 
 
@@ -25,8 +26,6 @@ pub use serde_json::{json, Value};
 pub use dotenv::dotenv;
 
 pub use reqwest::Client;
-
-pub use futures::{StreamExt,TryStreamExt};
 
 pub use elasticsearch::{
     cat::{CatIndicesParts, CatShardsParts, CatThreadPoolParts},
@@ -48,7 +47,7 @@ pub use anyhow::{anyhow, Result};
 pub use derive_new::new;
 pub use getset::Getters;
 
-pub use futures::future::join_all;
+pub use futures::{StreamExt,TryStreamExt, future::join_all};
 
 pub use async_trait::async_trait;
 

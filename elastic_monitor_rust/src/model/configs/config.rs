@@ -3,7 +3,7 @@ use crate::common::*;
 use crate::utils_modules::io_utils::*;
 
 use crate::model::configs::{
-    smtp_config::*, telegram_config::*, use_case_config::*, mon_elastic_config::*
+    smtp_config::*, telegram_config::*, use_case_config::*, mon_elastic_config::*, slack_config::*
 };
 
 use crate::env_configuration::env_config::*;
@@ -20,6 +20,7 @@ pub fn initialize_server_config() -> Config {
 }
 
 #[doc = "SMTP config 정보"]
+#[allow(dead_code)]
 pub fn get_smtp_config_info() -> Arc<SmtpConfig> {
     let smtp_config: &Arc<SmtpConfig> = &SERVER_CONFIG.smtp;
     Arc::clone(smtp_config)
@@ -43,12 +44,20 @@ pub fn get_mon_es_config_info() -> Arc<MonElasticConfig> {
     Arc::clone(monitor_es_config)
 }
 
+#[doc = "Slack config 정보"]
+pub fn get_slack_config_info() -> Arc<SlackConfig> {
+    let slack_config: &Arc<SlackConfig> = &SERVER_CONFIG.slack;
+    Arc::clone(slack_config)
+}
+
 #[derive(Debug)]
 pub struct Config {
+    #[allow(dead_code)]
     pub smtp: Arc<SmtpConfig>,
     pub telegram: Arc<TelegramConfig>,
     pub usecase: Arc<UseCaseConfig>,
-    pub monitor_es: Arc<MonElasticConfig>
+    pub monitor_es: Arc<MonElasticConfig>,
+    pub slack: Arc<SlackConfig>
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -56,7 +65,8 @@ pub struct ConfigNotSafe {
     pub smtp: SmtpConfig,
     pub telegram: TelegramConfig,
     pub usecase: UseCaseConfig,
-    pub monitor_es: MonElasticConfig
+    pub monitor_es: MonElasticConfig,
+    pub slack: SlackConfig
 }
 
 impl Config {
@@ -66,11 +76,11 @@ impl Config {
                 Ok(system_config) => system_config,
                 Err(e) => {
                     error!(
-                        "[Error][main()] Failed to retrieve information 'system_config'. : {:?}",
+                        "[main()] Failed to retrieve information 'system_config'. : {:?}",
                         e
                     );
                     panic!(
-                        "[Error][main()] Failed to retrieve information 'system_config'. : {:?}",
+                        "[main()] Failed to retrieve information 'system_config'. : {:?}",
                         e
                     );
                 }
@@ -80,7 +90,8 @@ impl Config {
             smtp: Arc::new(system_config.smtp),
             telegram: Arc::new(system_config.telegram),
             usecase: Arc::new(system_config.usecase),
-            monitor_es: Arc::new(system_config.monitor_es)
+            monitor_es: Arc::new(system_config.monitor_es),
+            slack: Arc::new(system_config.slack)
         }
     }
 }

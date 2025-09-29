@@ -2,7 +2,7 @@ use crate::common::*;
 
 use crate::model::monitoring::{breaker_info::*, segment_info::*};
 
-#[derive(Builder, Clone, Serialize, Deserialize, Debug, Getters, new)]
+#[derive(Builder, Clone, Serialize, Deserialize, Debug, Getters)]
 #[getset(get = "pub", set = "pub")]
 pub struct MetricInfo {
     pub timestamp: String,

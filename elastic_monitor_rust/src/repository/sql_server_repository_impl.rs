@@ -6,25 +6,25 @@ use crate::model::sqlserver::rdb_config::*;
 
 use crate::env_configuration::env_config::*;
 
-use crate::traits::sql_server_repository_trait::*;
+use crate::traits::repository::sql_server_repository::*;
 
 #[doc = "전역 Sqlserver Client 인스턴스를 선언"]
-static SQL_SERVER_REPO: once_lazy<Arc<SqlServerRepositoryPub>> = once_lazy::new(initialize_sqlserver_client);
+static SQL_SERVER_REPO: once_lazy<Arc<SqlServerRepositoryImpl>> = once_lazy::new(initialize_sqlserver_client);
 
 #[derive(Getters, new)]
 #[getset(get = "pub")]
-pub struct SqlServerRepositoryPub {
+pub struct SqlServerRepositoryImpl {
     pub pool: Pool
 }
 
 #[doc = "SQL Server 커넥션 풀 초기화 - 애플리케이션 시작 시 1회만 호출"]
-fn initialize_sqlserver_client() -> Arc<SqlServerRepositoryPub> {
+fn initialize_sqlserver_client() -> Arc<SqlServerRepositoryImpl> {
     info!("initialize_sqlserver_client() START!");
 
      /* TOML 로딩 */
     let rdb_config: RdbConfig = read_toml_from_file::<RdbConfig>(&SQL_SERVER_INFO_PATH)
         .unwrap_or_else(|_| {
-            let err_msg: &str = "[ERROR][initialize_sqlserver_client()] Cannot read RdbConfig object.";
+            let err_msg: &str = "[initialize_sqlserver_client()] Cannot read RdbConfig object.";
             error!("{}", err_msg);
             panic!("{}", err_msg)
         });
@@ -50,7 +50,7 @@ fn initialize_sqlserver_client() -> Arc<SqlServerRepositoryPub> {
             Ok(p) => p,
             Err(e) => {
                 error!(
-                    "[ERROR][initialize_sqlserver_client] Failed to create pool: {:?}",
+                    "[initialize_sqlserver_client] Failed to create pool: {:?}",
                     e
                 );
                 panic!("{:?}", e);
@@ -58,16 +58,16 @@ fn initialize_sqlserver_client() -> Arc<SqlServerRepositoryPub> {
         };
 
 
-    Arc::new(SqlServerRepositoryPub::new(pool))
+    Arc::new(SqlServerRepositoryImpl::new(pool))
 }
 
 #[doc = "SQL_SERVER_REPO를 Thread-safe 하게 이용하는 함수."]
-pub fn get_sql_server_repo() -> Arc<SqlServerRepositoryPub> {
+pub fn get_sql_server_repo() -> Arc<SqlServerRepositoryImpl> {
     Arc::clone(&SQL_SERVER_REPO)
 }
 
 #[async_trait]
-impl SqlServerRepository for SqlServerRepositoryPub {
+impl SqlServerRepository for SqlServerRepositoryImpl {
 
     #[doc = "SQL Server 아이메일러 관련 프로시저 호출"]
     async fn execute_imailer_procedure(&self, send_email: &str, email_subject: &str, email_content: &str) -> Result<(), anyhow::Error> {
@@ -112,10 +112,10 @@ impl SqlServerRepository for SqlServerRepositoryPub {
         if let Some(row) = results.first().and_then(|set| set.first()) {
             let return_code: i32 = row.get("return_code").unwrap_or(0);
             if return_code == 0 {
-                error!("[ERROR][execute_imailer_procedure] proc failure - return_code={}", return_code);
+                error!("[execute_imailer_procedure] proc failure - return_code={}", return_code);
             } 
         } else {
-            error!("[ERROR][execute_imailer_procedure] no return row");
+            error!("[execute_imailer_procedure] no return row");
         }
 
         Ok(())

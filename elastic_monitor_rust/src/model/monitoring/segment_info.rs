@@ -1,6 +1,6 @@
 use crate::common::*;
 
-#[derive(Builder, Clone, Serialize, Deserialize, Debug, new)]
+#[derive(Builder, Clone, Serialize, Deserialize, Debug)]
 pub struct SegmentInfo {
     pub segment_count: u64,
     pub segment_memory_in_byte: u64,

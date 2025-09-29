@@ -1,6 +1,6 @@
 use crate::common::*;
 
-#[derive(Clone, Serialize, Deserialize, Debug, Getters, new)]
+#[derive(Builder, Clone, Serialize, Deserialize, Debug, Getters)]
 #[getset(get = "pub", set = "pub")]
 pub struct IndexMetricInfo {
     pub timestamp: String,

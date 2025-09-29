@@ -5,7 +5,7 @@ pub fn get_decimal_round_conversion(value: f64, decimal: i32) -> Result<f64, any
 
     if square_num == 0.0 {
         return Err(anyhow!(
-            "[Error][get_decimal_round_conversion()] Dividend cannot be zero"
+            "[get_decimal_round_conversion()] Dividend cannot be zero"
         ));
     }
 
@@ -17,7 +17,7 @@ pub fn get_percentage_transformation(divisor: i64, dividend: i64) -> Result<f64,
     let dividend_f64: f64 = dividend as f64;
 
     if dividend_f64 == 0.0 {
-        warn!("[Warn][get_percentage_transformation()] Dividend cannot be zero");
+        warn!("[get_percentage_transformation()] Dividend cannot be zero");
         return Ok(0.0);
     }
 

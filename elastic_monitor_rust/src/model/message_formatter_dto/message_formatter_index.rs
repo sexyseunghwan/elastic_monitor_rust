@@ -13,9 +13,10 @@ pub struct MessageFormatterIndex {
     pub err_index_detail: Vec<Indicies>,
 }
 
-impl MessageFormatter for MessageFormatterIndex {
-    #[doc = "Html 형식으로 변환해주는 함수 -> Message Too Long 이슈 때문에, Telegram 알람은 간단히 받기로 수정."]
-    fn get_telegram_format(&self) -> String {
+impl MessageFormatterIndex {
+
+    #[doc = "채팅 API 형식으로 변환해주는 함수"]
+    fn get_chat_api_format(&self) -> String {
         let mut err_detailed = String::new();
 
         for indicies in &self.err_index_detail {
@@ -32,6 +33,19 @@ impl MessageFormatter for MessageFormatterIndex {
         msg_contents.push_str(format!("[host]\n{}\n\n", host_str).as_str());
 
         msg_contents
+    }
+
+}
+
+impl MessageFormatter for MessageFormatterIndex {
+    #[doc = "Html 형식으로 변환해주는 함수 -> Message Too Long 이슈 때문에, Telegram 알람은 간단히 받기로 수정."]
+    fn get_telegram_format(&self) -> String { 
+        self.get_chat_api_format()
+    }
+
+    #[doc = "Slack 형식으로 변환해주는 함수"]
+    fn get_slack_format(&self) -> String {
+        self.get_chat_api_format()
     }
 
     #[doc = "Email 형식에 맞게 변환"]

@@ -9,10 +9,10 @@ use crate::utils_modules::io_utils::*;
 
 use crate::env_configuration::env_config::*;
 
-use crate::traits::es_repository_trait::*;
+use crate::traits::repository::es_repository::*;
 
 #[doc = "Elasticsearch connection pool - 모니터링용 싱글톤"]
-static MON_ELASTIC_CONN_SEMAPHORE_POOL: once_lazy<Vec<Arc<EsRepositoryPub>>> = once_lazy::new(
+static MON_ELASTIC_CONN_SEMAPHORE_POOL: once_lazy<Vec<Arc<EsRepositoryImpl>>> = once_lazy::new(
     || {
         let mon_es_config: Arc<MonElasticConfig> = get_mon_es_config_info();
         let cluster_name: &String = mon_es_config.cluster_name();
@@ -23,10 +23,10 @@ static MON_ELASTIC_CONN_SEMAPHORE_POOL: once_lazy<Vec<Arc<EsRepositoryPub>>> = o
 
         (0..pool_cnt)
         .map(|_| {
-            match EsRepositoryPub::new(cluster_name, es_host.clone(), es_id, es_pw, None, None, None) {
+            match EsRepositoryImpl::new(cluster_name, es_host.clone(), es_id, es_pw, None, None, None) {
                 Ok(repo) => Arc::new(repo),
                 Err(err) => {
-                    error!("[ERROR][MON_ELASTIC_CONN_SEMAPHORE_POOL] Failed to create repository: {}", err);
+                    error!("[MON_ELASTIC_CONN_SEMAPHORE_POOL] Failed to create repository: {}", err);
                     panic!("Failed to initialize monitoring connection pool: {}", err);
                 }
             }
@@ -43,7 +43,7 @@ static SEMAPHORE: once_lazy<Arc<Semaphore>> = once_lazy::new(|| {
 
 #[derive(Debug)]
 pub struct ElasticConnGuard {
-    client: Arc<EsRepositoryPub>,
+    client: Arc<EsRepositoryImpl>,
     _permit: OwnedSemaphorePermit, /* drop 시 자동 반환 */
 }
 
@@ -57,10 +57,10 @@ impl ElasticConnGuard {
         info!("[ElasticConnGuard] Acquired semaphore");
 
         /* 임의로 하나의 클라이언트를 가져옴 (랜덤 선택 가능) */
-        let client: Arc<EsRepositoryPub> = MON_ELASTIC_CONN_SEMAPHORE_POOL
+        let client: Arc<EsRepositoryImpl> = MON_ELASTIC_CONN_SEMAPHORE_POOL
             .choose(&mut rand::thread_rng())
             .cloned()
-            .expect("[Error][EalsticConnGuard -> new] No clients available");
+            .expect("[EalsticConnGuard -> new] No clients available");
 
         Ok(Self {
             client,
@@ -70,7 +70,7 @@ impl ElasticConnGuard {
 }
 
 impl Deref for ElasticConnGuard {
-    type Target = EsRepositoryPub;
+    type Target = EsRepositoryImpl;
 
     fn deref(&self) -> &Self::Target {
         &self.client
@@ -115,13 +115,13 @@ pub async fn get_elastic_guard_conn() -> Result<ElasticConnGuard, anyhow::Error>
 #[doc = "모니터링 대상이 되는 Elasticsearch DB 초기화"]
 /// # Returns
 /// * Result<Vec<EsRepositoryPub>, anyhow::Error> - 모니터링 할 대상 Elasticsearch 정보 list
-pub fn initialize_db_clients() -> Result<Vec<EsRepositoryPub>, anyhow::Error> {
-    let mut elastic_conn_vec: Vec<EsRepositoryPub> = Vec::new();
+pub fn initialize_db_clients() -> Result<Vec<EsRepositoryImpl>, anyhow::Error> {
+    let mut elastic_conn_vec: Vec<EsRepositoryImpl> = Vec::new();
 
     let cluster_config: ClusterConfig = read_toml_from_file::<ClusterConfig>(&ELASTIC_INFO_PATH)?;
 
     for config in &cluster_config.clusters {
-        let es_helper: EsRepositoryPub = EsRepositoryPub::new(
+        let es_helper: EsRepositoryImpl = EsRepositoryImpl::new(
             &config.cluster_name,
             config.hosts.clone(),
             &config.es_id,
@@ -139,7 +139,7 @@ pub fn initialize_db_clients() -> Result<Vec<EsRepositoryPub>, anyhow::Error> {
 
 #[derive(Debug, Getters, Clone)]
 #[getset(get = "pub")]
-pub struct EsRepositoryPub {
+pub struct EsRepositoryImpl {
     pub cluster_name: String,
     pub es_clients: Vec<Arc<EsClient>>,
     pub index_pattern: Option<String>,
@@ -153,7 +153,7 @@ pub(crate) struct EsClient {
     es_conn: Elasticsearch,
 }
 
-impl EsRepositoryPub {
+impl EsRepositoryImpl {
     #[doc = "Elasticsearch connection 생성자"]
     /// # Arguments
     /// * `cluster_name`        - Elasticsearch Cluster 이름
@@ -196,7 +196,7 @@ impl EsRepositoryPub {
             es_clients.push(es_client);
         }
 
-        Ok(EsRepositoryPub {
+        Ok(EsRepositoryImpl {
             cluster_name: cluster_name.to_string(),
             es_clients,
             index_pattern:      log_index_pattern.map(str::to_string),
@@ -244,7 +244,7 @@ impl EsRepositoryPub {
 }
 
 #[async_trait]
-impl EsRepository for EsRepositoryPub {
+impl EsRepository for EsRepositoryImpl {
     #[doc = "Elasticsearch 클러스터 내부에 존재하는 인덱스들의 정보를 가져오는 함수"]
     /// # Returns
     /// * Result<String, anyhow::Error> - 클러스터 내에 존재하는 각 인덱스들의 이름 및 health 정보
