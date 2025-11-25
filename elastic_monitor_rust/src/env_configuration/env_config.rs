@@ -38,5 +38,4 @@ pub static URGENT_CONFIG_PATH: once_lazy<String> = once_lazy::new(|| get_env_or_
 pub static EMAIL_RECEIVER_DEV_PATH: once_lazy<String> = once_lazy::new(|| get_env_or_panic("EMAIL_RECEIVER_DEV_PATH"));
 
 #[doc = "Function to globally initialize the 'MON_ELASTIC_INFO_PATH' variable"]
-#[allow(dead_code)]
 pub static MON_ELASTIC_INFO_PATH: once_lazy<String> = once_lazy::new(|| get_env_or_panic("MON_ELASTIC_INFO_PATH"));

@@ -5,13 +5,13 @@ pub use std::{
     str::{FromStr, Lines},
     sync::Arc,
     thread::sleep as std_sleep,
-    ops::Deref
+    ops::Deref,
+    fmt::Display
 };
 
 pub use tokio::{
     time::{sleep,Duration},
-    sync::{OwnedSemaphorePermit, Semaphore},
-    join
+    sync::{OwnedSemaphorePermit, Semaphore}
 };
 
 
@@ -26,6 +26,8 @@ pub use serde_json::{json, Value};
 pub use dotenv::dotenv;
 
 pub use reqwest::Client;
+
+pub use futures::{StreamExt,TryStreamExt};
 
 pub use elasticsearch::{
     cat::{CatIndicesParts, CatShardsParts, CatThreadPoolParts},
@@ -47,14 +49,14 @@ pub use anyhow::{anyhow, Result};
 pub use derive_new::new;
 pub use getset::Getters;
 
-pub use futures::{StreamExt,TryStreamExt, future::join_all};
+pub use futures::future::join_all;
 
 pub use async_trait::async_trait;
 
 pub use once_cell::sync::Lazy as once_lazy;
 
 
-pub use chrono::{DateTime, NaiveDateTime, Utc};
+pub use chrono::{DateTime, NaiveDateTime, Utc, TimeZone};
 
 pub use lettre::{
     message::{MultiPart, SinglePart},

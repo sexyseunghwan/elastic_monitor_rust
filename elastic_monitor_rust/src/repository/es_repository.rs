@@ -9,7 +9,7 @@ use crate::utils_modules::io_utils::*;
 
 use crate::env_configuration::env_config::*;
 
-use crate::traits::repository::es_repository::*;
+use crate::traits::es_repository_trait::*;
 
 #[doc = "Elasticsearch connection pool - 모니터링용 싱글톤"]
 static MON_ELASTIC_CONN_SEMAPHORE_POOL: once_lazy<Vec<Arc<EsRepositoryImpl>>> = once_lazy::new(
@@ -23,7 +23,7 @@ static MON_ELASTIC_CONN_SEMAPHORE_POOL: once_lazy<Vec<Arc<EsRepositoryImpl>>> = 
 
         (0..pool_cnt)
         .map(|_| {
-            match EsRepositoryImpl::new(cluster_name, es_host.clone(), es_id, es_pw, None, None, None) {
+            match EsRepositoryImpl::new(cluster_name, es_host.clone(), es_id, es_pw, None, None, None, None) {
                 Ok(repo) => Arc::new(repo),
                 Err(err) => {
                     error!("[MON_ELASTIC_CONN_SEMAPHORE_POOL] Failed to create repository: {}", err);
@@ -60,7 +60,7 @@ impl ElasticConnGuard {
         let client: Arc<EsRepositoryImpl> = MON_ELASTIC_CONN_SEMAPHORE_POOL
             .choose(&mut rand::thread_rng())
             .cloned()
-            .expect("[EalsticConnGuard -> new] No clients available");
+            .expect("[Error][EalsticConnGuard -> new] No clients available");
 
         Ok(Self {
             client,
@@ -129,6 +129,7 @@ pub fn initialize_db_clients() -> Result<Vec<EsRepositoryImpl>, anyhow::Error> {
             config.index_pattern.as_deref(),
             config.per_index_pattern.as_deref(),
             config.urgent_index_pattern.as_deref(),
+            config.err_log_index_pattern.as_deref()
         )?;
 
         elastic_conn_vec.push(es_helper);
@@ -145,6 +146,7 @@ pub struct EsRepositoryImpl {
     pub index_pattern: Option<String>,
     pub per_index_pattern: Option<String>,
     pub urgent_index_pattern: Option<String>,
+    pub err_log_index_pattern: Option<String>
 }
 
 #[derive(Debug, Getters, Clone, new)]
@@ -174,6 +176,7 @@ impl EsRepositoryImpl {
         log_index_pattern: Option<&str>,
         per_index_pattern: Option<&str>,
         urgent_index_pattern: Option<&str>,
+        err_log_index_pattern: Option<&str>
     ) -> Result<Self, anyhow::Error> {
         let mut es_clients: Vec<Arc<EsClient>> = Vec::new();
 
@@ -202,6 +205,7 @@ impl EsRepositoryImpl {
             index_pattern:      log_index_pattern.map(str::to_string),
             per_index_pattern:  per_index_pattern.map(str::to_string),
             urgent_index_pattern: urgent_index_pattern.map(str::to_string),
+            err_log_index_pattern: err_log_index_pattern.map(str::to_string)
         })
     }
 
@@ -481,7 +485,7 @@ impl EsRepository for EsRepositoryImpl {
                 }
             })
             .await?;
-
+        
         if response.status_code().is_success() {
             Ok(())
         } else {

@@ -1,14 +1,10 @@
 use crate::common::*;
 
-use crate::repository::{
-    sql_server_repository_impl::*, tele_bot_repository_impl::*, slack_repository_impl::*
-};
+use crate::repository::sql_server_repository::*;
+use crate::repository::tele_bot_repository::*;
 
-
-use crate::traits::service::notification_service::*;
-use crate::traits::repository::{
-    sql_server_repository::*, tele_bot_repository::*, slack_repository::*
-};
+use crate::traits::notification_service_trait::*;
+use crate::traits::sql_server_repository_trait::*;
 
 use crate::env_configuration::env_config::*;
 
@@ -16,9 +12,10 @@ use crate::utils_modules::io_utils::*;
 
 use crate::model::{
     message_formatter_dto::message_formatter::*,
-    receiver_email_list::*,
+    receiver_email_list::*, 
     configs::{use_case_config::*, config::*}
 };
+
 
 #[derive(Clone, Debug, Getters)]
 #[getset(get = "pub")]
@@ -60,35 +57,9 @@ impl NotificationServiceImpl {
     #[doc = "Telegram 을 통해서 문제를 전파해주는 함수"]
     async fn send_alarm_to_telegram<T: MessageFormatter + Sync + Send>(&self,  msg_fmt: &T) -> Result<(), anyhow::Error> {
 
-        let tele_service: Arc<TelebotRepositoryImpl> = get_telegram_repo();
+        let tele_service: Arc<TelebotRepositoryPub> = get_telegram_repo();
         let telegram_format: String = msg_fmt.get_telegram_format();
-        
-        match tele_service.bot_send(telegram_format.as_str()).await {
-            Ok(_) => {
-                info!("Telegram alarm sending completed.");
-            },
-            Err(e) => {
-                error!("[NotificationServiceImpl->send_alarm_to_telegram] {:?}", e);
-            }
-        }
-
-        Ok(())
-    }
-
-    #[doc = "Slack을 통해서 문제를 전파해주는 함수"]
-    async fn send_alarm_to_slack<T: MessageFormatter + Sync + Send>(&self, msg_fmt: &T) -> Result<(), anyhow::Error> {
-
-        let slack_service: Arc<SlackRepositoryImpl> = get_slack_repo();
-        let slack_format: String = msg_fmt.get_slack_format();
-        
-        match slack_service.send_message(slack_format.as_str()).await {
-            Ok(_) => {
-                info!("Slack alarm sending completed.");
-            },
-            Err(e) => {
-                error!("[NotificationServiceImpl->send_alarm_to_slack] {:?}", e);
-            }
-        }
+        tele_service.bot_send(telegram_format.as_str()).await?;
 
         Ok(())
     }
@@ -97,7 +68,7 @@ impl NotificationServiceImpl {
     async fn send_alarm_to_imailer<T: MessageFormatter + Sync + Send>(&self, msg_fmt: &T) -> Result<(), anyhow::Error> {
 
         let email_format: HtmlContents = msg_fmt.get_email_format();
-        let sql_server_repo: Arc<SqlServerRepositoryImpl> = get_sql_server_repo();
+        let sql_server_repo: Arc<SqlServerRepositoryPub> = get_sql_server_repo();
         
         /* html 파일 읽기 */
         let mut html_template: String = std::fs::read_to_string(&email_format.view_page_dir)?;
@@ -117,7 +88,7 @@ impl NotificationServiceImpl {
                 },
                 Err(e) => {
                     error!(
-                        "[NotificationServicePub->send_alarm_to_imailer] Failed to send mail to {} : {:?}",
+                        "[NotificationServiceImpl->send_alarm_to_imailer] Failed to send mail to {} : {:?}",
                         email.email_id(),
                         e
                     )
@@ -133,8 +104,6 @@ impl NotificationServiceImpl {
 
 #[async_trait]
 impl NotificationService for NotificationServiceImpl {
-    
-    #[doc = ""]
     async fn send_alarm_infos<T: MessageFormatter + Sync + Send>(
         &self,
         msg_fmt: &T,
@@ -144,22 +113,14 @@ impl NotificationService for NotificationServiceImpl {
         let use_case: Arc<UseCaseConfig> = get_usecase_config_info();
 
         if use_case.use_case == "prod" {
-            /* 텔레그램, 슬랙, 이메일을 동시에 실행 */ 
-            let (tg, sl, em) = join!(
-                self.send_alarm_to_telegram(msg_fmt),
-                self.send_alarm_to_slack(msg_fmt),
-                self.send_alarm_to_imailer(msg_fmt),
-            );
-            
-            tg?;
-            sl?;
-            em?;
-
-        } else {
-            /* dev환경은 이메일만 보내준다. */ 
-            self.send_alarm_to_imailer(msg_fmt).await?;
+            /* Telegram 메시지 Send */
+            self.send_alarm_to_telegram(msg_fmt).await?;
         }
+
+        /* 개발/운영 환경 상관없이 아이메일러로 전송 (이메일) */
+        self.send_alarm_to_imailer(msg_fmt).await?;
         
         Ok(())
     } 
 }
+

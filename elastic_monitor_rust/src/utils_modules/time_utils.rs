@@ -41,3 +41,18 @@ pub fn make_time_range(sec_space: i64) -> Result<(NaiveDateTime, NaiveDateTime, 
 
     Ok((now, past, now_str, past_str))
 }
+
+pub fn convert_date_to_str<Tz, TzOut>(
+    time: DateTime<Tz>,
+    tz: TzOut, // Timezone (Utc, Local, FixedOffset ...)
+) -> String
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+    TzOut: TimeZone,
+    TzOut::Offset: Display,
+{
+    time.with_timezone(&tz)
+        .format("%Y-%m-%dT%H:%M:%SZ")
+        .to_string()
+}

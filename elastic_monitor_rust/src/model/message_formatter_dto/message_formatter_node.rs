@@ -12,10 +12,9 @@ pub struct MessageFormatterNode {
     pub err_detail: String,
 }
 
-
-impl MessageFormatterNode {
-
-    fn get_chat_api_format(&self) -> String {
+impl MessageFormatter for MessageFormatterNode {
+    #[doc = "Telgram 형식으로 변환해주는 함수"]
+    fn get_telegram_format(&self) -> String {
         let mut msg_contents: String = String::new();
         msg_contents.push_str(format!("==== Error Alert [{}] ====\n", self.cluster_name).as_str());
         msg_contents.push_str(format!("[cluster name]\n{}\n\n", self.cluster_name).as_str());
@@ -28,20 +27,7 @@ impl MessageFormatterNode {
 
         msg_contents
     }
-
-}
-
-impl MessageFormatter for MessageFormatterNode {
-    #[doc = "Telgram 형식으로 변환해주는 함수"]
-    fn get_telegram_format(&self) -> String {
-        self.get_chat_api_format()
-    }
-
-    #[doc = "Slack 형식으로 변환해주는 함수"]
-    fn get_slack_format(&self) -> String {
-        self.get_chat_api_format()
-    }
-
+    
     #[doc = "Email 형식에 맞게 변환"]
     fn get_email_format(&self) -> HtmlContents {
         let mut html_forms: String = String::new();

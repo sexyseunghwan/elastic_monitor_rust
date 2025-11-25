@@ -1,9 +1,14 @@
 use crate::common::*;
 
-use crate::model::index_metric_info::*;
-use crate::model::message_formatter_dto::message_formatter_urgent::*;
-use crate::model::monitoring::metric_info::*;
-use crate::model::indicies::*;
+use crate::model::{
+    index_metric_info::*,
+    message_formatter_dto::message_formatter_urgent::*,
+    monitoring::metric_info::*,
+    indicies::*,
+    err_log_dto::{
+        err_log_info::*
+    }
+};
 
 
 #[async_trait]
@@ -34,4 +39,6 @@ pub trait MetricService {
     async fn post_cluster_nodes_infos(&self) -> Result<(), anyhow::Error>;
     async fn post_cluster_index_infos(&self) -> Result<(), anyhow::Error>;
     async fn get_alarm_urgent_infos(&self) -> Result<Vec<UrgentAlarmInfo>, anyhow::Error>;
+    async fn put_node_conn_err_infos(&self, cluster_name: &str, fail_hosts: &[String]) -> anyhow::Result<()>;
+    //async fn put_error_logs(&self, error_log_info: ErrorLogInfo) -> anyhow::Result<()>;
 }

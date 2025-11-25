@@ -19,10 +19,9 @@ pub struct MessageFormatterUrgent {
     pub urgent_infos: Vec<UrgentAlarmInfo>,
 }
 
-impl MessageFormatterUrgent {
-    
-    #[doc = "채팅 API 형식으로 변환해주는 함수"]
-    fn get_chat_api_format(&self) -> String {
+impl MessageFormatter for MessageFormatterUrgent {
+    #[doc = "Telgram 형식으로 변환해주는 함수"]
+    fn get_telegram_format(&self) -> String {
         let mut msg_contents: String = String::new();
         msg_contents.push_str(format!("==== Error Alert [{}] ====\n", self.cluster_name).as_str());
         msg_contents.push_str(format!("[cluster name]\n{}\n\n", self.cluster_name).as_str());
@@ -44,20 +43,6 @@ impl MessageFormatterUrgent {
             );
         }
         msg_contents
-
-    }
-}
-
-//fn get_chat_api_format(&self) -> String {
-impl MessageFormatter for MessageFormatterUrgent {
-    #[doc = "Telgram 형식으로 변환해주는 함수"]
-    fn get_telegram_format(&self) -> String {
-        self.get_chat_api_format()
-    }
-
-    #[doc = "Slack 형식으로 변환해주는 함수"]
-    fn get_slack_format(&self) -> String {
-        self.get_chat_api_format()
     }
 
     #[doc = "Email 형식에 맞게 변환"]

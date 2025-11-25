@@ -37,9 +37,7 @@ History     : 2024-10-02 Seunghwan Shin       # [v.1.0.0] first create
                                                 1) 리눅스 호환가능하도록 변경
                                                 2) 개발계에서 문제가 생길경우에는 단독 메일만 보내도록 처리 
               2025-09-11 Seunghwan Shin       # [v.2.2.0] 모니터링 전용 ES 에 메트릭 수집하는 방식으로 코드 변경
-              2025-09-29 Seunghwan Shin       # [v.2.3.0] 
-                                                1) Slack 알람기능 추가
-                                                2) 알람기능 병렬처리 로직 추가
+              2025-11-00 Seunghwan Shin       # [v.3.0.0]
 */
 mod common;
 use common::*;
@@ -52,8 +50,8 @@ use utils_modules::logger_utils::*;
 
 mod service;
 use service::{
-    metrics_service_impl::*,
-    notification_service_impl::*
+    metrics_service::*,
+    notification_service::*
 };
 
 mod model;
@@ -62,7 +60,7 @@ use model::{
 };
 
 mod repository;
-use repository::es_repository_impl::*;
+use repository::es_repository::*;
 
 mod env_configuration;
 
@@ -81,14 +79,14 @@ async fn main() {
 
     /* 대상 Elasticsearch DB 커넥션 정보 리스트 */
     let es_infos_vec: Vec<EsRepositoryImpl> = initialize_db_clients().unwrap_or_else(|e| {
-        error!("[main()] Unable to retrieve 'Elasticsearch' connection information.: {:?}", e);
-        panic!("[main()] Unable to retrieve 'Elasticsearch' connection information.: {:?}", e)
+        error!("[Error][main()] Unable to retrieve 'Elasticsearch' connection information.: {:?}", e);
+        panic!("[Error][main()] Unable to retrieve 'Elasticsearch' connection information.: {:?}", e)
     });
 
     /* 실행환경에 따라 분류 */
     let use_case_binding: Arc<UseCaseConfig> = get_usecase_config_info();
     let use_case: &str = use_case_binding.use_case().as_str();
-
+    
     /*
         Handler 의존주입
         - EsRepositoryPub 를 의존주입하는 이유는 각 Cluster 서버마다 모니터링 대상 Elasticsearch 서버가 다를 수 있기 때문이다.
@@ -96,9 +94,9 @@ async fn main() {
     let mut handlers: Vec<MainHandler<MetricServiceImpl<EsRepositoryImpl>, NotificationServiceImpl>>= Vec::new();
 
     for cluster in es_infos_vec {
-        let metirc_service: MetricServiceImpl<EsRepositoryImpl>= MetricServiceImpl::new(cluster);
-        let notification_service: NotificationServiceImpl= NotificationServiceImpl::new();
-        let main_handler: MainHandler<MetricServiceImpl<EsRepositoryImpl>, NotificationServiceImpl>= MainHandler::new(metirc_service, notification_service);
+        let metirc_service: MetricServiceImpl<EsRepositoryImpl> = MetricServiceImpl::new(cluster);
+        let notification_service: NotificationServiceImpl = NotificationServiceImpl::new();
+        let main_handler: MainHandler<MetricServiceImpl<EsRepositoryImpl>, NotificationServiceImpl> = MainHandler::new(metirc_service, notification_service);
         handlers.push(main_handler);
     }
     
@@ -122,7 +120,7 @@ async fn main() {
                     info!("Program processed successfully");
                 }
                 Err(e) => {
-                    error!("[main()] Error processing template: {:?}", e);
+                    error!("[Error][main()] Error processing template: {:?}", e);
                 }
             }
         }

@@ -12,3 +12,4 @@ pub mod cluster_dto;
 pub mod monitoring;
 pub mod sqlserver;
 pub mod configs;
+pub mod err_log_dto;

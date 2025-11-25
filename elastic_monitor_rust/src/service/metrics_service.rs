@@ -14,14 +14,16 @@ use crate::model::thread_pool_stat::*;
 use crate::model::urgent_dto::urgent_config::*;
 use crate::model::urgent_dto::urgent_info::*;
 use crate::model::monitoring::{breaker_info::*, metric_info::*, segment_info::*};
+use crate::model::err_log_dto::err_log_info::*;
+    
 
-use crate::repository::es_repository_impl::*;
+use crate::repository::es_repository::*;
 
 
 use crate::env_configuration::env_config::*;
 
-use crate::traits::service::metric_service::*;
-use crate::traits::repository::es_repository::*;
+use crate::traits::metric_service_trait::*;
+use crate::traits::es_repository_trait::*;
 
 
 #[derive(Clone, Debug)]
@@ -90,21 +92,13 @@ impl<R: EsRepository + Sync + Send> MetricServiceImpl<R> {
         let segment_index_writer_memory_in_bytes: u64 = get_value_by_path(node_info, "indices.segments.index_writer_memory_in_bytes")?;
         let segment_version_map_memory_in_bytes: u64 = get_value_by_path(node_info, "indices.segments.version_map_memory_in_bytes")?;
         let segment_fixed_bit_set_memory_in_bytes: u64 = get_value_by_path(node_info, "indices.segments.fixed_bit_set_memory_in_bytes")?;
-        
+
         Ok(
-            SegmentInfoBuilder::default()
-                .segment_count(segment_count)
-                .segment_memory_in_byte(segment_memory_in_byte)
-                .segment_terms_memory_in_bytes(segment_terms_memory_in_bytes)
-                .segment_stored_fields_memory_in_bytes(segment_stored_fields_memory_in_bytes)
-                .segment_term_vectors_memory_in_bytes(segment_term_vectors_memory_in_bytes)
-                .segment_norms_memory_in_byte(segment_norms_memory_in_byte)
-                .segment_points_memory_in_bytes(segment_points_memory_in_bytes)
-                .segment_doc_values_memory_in_bytes(segment_doc_values_memory_in_bytes)
-                .segment_index_writer_memory_in_bytes(segment_index_writer_memory_in_bytes)
-                .segment_version_map_memory_in_bytes(segment_version_map_memory_in_bytes)
-                .segment_fixed_bit_set_memory_in_bytes(segment_fixed_bit_set_memory_in_bytes)
-                .build()?
+            SegmentInfo::new(
+                segment_count, segment_memory_in_byte, segment_terms_memory_in_bytes, segment_stored_fields_memory_in_bytes, segment_term_vectors_memory_in_bytes,
+                segment_norms_memory_in_byte, segment_points_memory_in_bytes, segment_doc_values_memory_in_bytes, segment_index_writer_memory_in_bytes,
+                segment_version_map_memory_in_bytes, segment_fixed_bit_set_memory_in_bytes
+            )
         )
     }
     
@@ -370,14 +364,12 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
                 /* breaker 지표 관련 */
                 let breaker_request: BreakerInfo = self.get_breaker_info(node_info, "request")?;
                 let breaker_fielddata: BreakerInfo = self.get_breaker_info(node_info, "fielddata")?;
+                /* 8.x 버전 */
+                //let breaker_inflight_requests: BreakerInfo = self.get_breaker_info(node_info, "inflight_requests")?;
                 
-
-                /* 8.x ~ 버전 */
-                let breaker_inflight_requests: BreakerInfo = self.get_breaker_info(node_info, "inflight_requests")?;
                 /* 7.x 버전 */
-                //let breaker_inflight_requests: BreakerInfo = self.get_breaker_info(node_info, "in_flight_requests")?;
+                let breaker_inflight_requests: BreakerInfo = self.get_breaker_info(node_info, "in_flight_requests")?;
                 
-
                 let breaker_parent: BreakerInfo = self.get_breaker_info(node_info, "parent")?;                
                 
                 /* 이후에 값이 들어가야 하는 필드인 경우에는 지금 해당 소스에서 0으로 초기화 한 후에 데이터를 넣어준다. */
@@ -474,21 +466,21 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
             let refresh_total: i64 = get_value_by_path(total_stats, "total.refresh.total")?;
             let refresh_listener: i64 = get_value_by_path(total_stats, "total.refresh.listeners")?;
 
-            let index_metric_info: IndexMetricInfo = IndexMetricInfoBuilder::default()
-                .timestamp(cur_utc_time_str.to_string())
-                .index_name(index_name.to_string())
-                .translog_operation(translog_operation)
-                .translog_operation_size(translog_operation_size)
-                .translog_uncommited_operation(translog_uncommited_operation)
-                .translog_uncommited_operation_size(translog_uncommited_operation_size)
-                .flush_total(flush_total)
-                .refresh_total(refresh_total)
-                .refresh_listener(refresh_listener)
-                .build()?;
+            let index_metric_info: IndexMetricInfo = IndexMetricInfo::new(
+                cur_utc_time_str.to_string(),
+                index_name.to_string(),
+                translog_operation,
+                translog_operation_size,
+                translog_uncommited_operation,
+                translog_uncommited_operation_size,
+                flush_total,
+                refresh_total,
+                refresh_listener,
+            );
 
             Ok(index_metric_info)
         } else {
-            Err(anyhow!("[MetricService->get_index_stats_handle] No _all.total section in stats response"))
+            Err(anyhow!("[Error][MetricService->get_index_stats_handle] No _all.total section in stats response"))
         }
     }
 
@@ -577,7 +569,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
             let thread_pool_stat: &Vec<ThreadPoolStat> = match map.get(node_name) {
                 Some(thread_pool_stat) => thread_pool_stat,
                 None => {
-                    error!("[MetricService->get_cat_thread_pool_handle] The information corresponding to {} does not exist.", node_name);
+                    error!("[Error][MetricService->get_cat_thread_pool_handle] The information corresponding to {} does not exist.", node_name);
                     continue;
                 }
             };
@@ -626,13 +618,13 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
     async fn post_cluster_nodes_infos(&self) -> Result<(), anyhow::Error> {
         /* 지표를 저장해줄 인스턴스 벡터. */
         let mut metric_vec: Vec<MetricInfo> = Vec::new();
-
+        
         let now: NaiveDateTime = get_currnet_utc_naivedatetime();
         let now_str: String = format_datetime(now)?;
 
         let cluster_index_pattern: String = self.elastic_obj
             .get_cluster_index_pattern()
-            .ok_or_else(|| anyhow!("[MetricServicePub->post_cluster_nodes_infos] cluster_index_pattern is empty"))?;
+            .ok_or_else(|| anyhow!("[ERROR][MetricServicePub->post_cluster_nodes_infos] cluster_index_pattern is empty"))?;
         
         /* 날짜 기준으로 인덱스 이름 맵핑 */
         let index_name: String = self
@@ -662,13 +654,13 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
     #[doc = "모니터링 대상이 되는 index의 개별 정보를 elasticsearch 에 적재하는 함수"]
     async fn post_cluster_index_infos(&self) -> Result<(), anyhow::Error> {
         let cluster_name: String = self.elastic_obj.get_cluster_name();
-
+        
         let now: NaiveDateTime = get_currnet_utc_naivedatetime();
         let now_str: String = format_datetime(now)?;
 
         let cluster_index_monitor_pattern: String = self.elastic_obj
             .get_cluster_index_monitoring_pattern()
-            .ok_or_else(|| anyhow!("[MetricServicePub->post_cluster_index_infos] cluster_index_monitor_pattern is empty"))?;
+            .ok_or_else(|| anyhow!("[ERROR][MetricServicePub->post_cluster_index_infos] cluster_index_monitor_pattern is empty"))?;
 
         /* 인덱스 이름 생성 */ 
         let index_name: String = self
@@ -686,15 +678,9 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
         let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
 
         for elem in index_vec {
-            let index_matric_info: IndexMetricInfo = match self
+            let index_matric_info: IndexMetricInfo = self
                 .get_index_stats_handle(elem.index_name(), &now_str)
-                .await {
-                    Ok(index_matric_info) => index_matric_info,
-                    Err(e) => {
-                        error!("[post_cluster_index_infos->index_matric_info] {:?} - `{}` Not Found", e, elem.index_name());
-                        continue;
-                    }
-                };
+                .await?;
 
             let document: Value = serde_json::to_value(&index_matric_info)?;
             mon_es.post_doc(&index_name, document).await?;
@@ -710,7 +696,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
         
         let cluster_index_urgent_pattern: String = self.elastic_obj
             .get_cluster_index_urgent_pattern()
-            .ok_or_else(|| anyhow!("[MetricServicePub->get_alarm_urgent_infos] cluster_index_monitor_pattern is empty"))?;
+            .ok_or_else(|| anyhow!("[ERROR][MetricServicePub->get_alarm_urgent_infos] cluster_index_monitor_pattern is empty"))?;
 
         /* 인덱스 이름 생성 */ 
         let index_name: String = self
@@ -724,7 +710,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
         let host_ips: Vec<String> = self.extract_host_ips();
         
         if host_ips.is_empty() {
-            warn!("[MetricService->send_alarm_urgent_infos] No host IPs found. Skipping query.");
+            warn!("[Warn][MetricService->send_alarm_urgent_infos] No host IPs found. Skipping query.");
             return Ok(vec![]);
         }
         
@@ -760,7 +746,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
                             Some(_) => None,
                             None => {
                                 error!(
-                                    "[MetricService->send_alarm_urgent_infos] Missing value for metric '{}'",
+                                    "[Error][MetricService->send_alarm_urgent_infos] Missing value for metric '{}'",
                                     metric
                                 );
                                 None
@@ -772,6 +758,53 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
         
         Ok(urgent_alarm_infos)
     }
+    
+    #[doc = ""]
+    async fn put_node_conn_err_infos(&self, cluster_name: &str, fail_hosts: &[String]) -> anyhow::Result<()> {
+        
+        let now_utc: DateTime<Utc> = Utc::now();
+        let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
+        //let err_log_index = format!("{}", mon_es.urgent_index_pattern());
+        
+        let err_log_list: Vec<Value> = fail_hosts
+            .iter()
+            .filter_map(|host| {
+                let err_log_info = ErrorLogInfo::new(
+                    cluster_name.to_string(),
+                    host.to_string(),
+                    convert_date_to_str(now_utc, Utc),
+                    "Elasticsearch node connection failure".into(),
+                    format!("Connection to node {} cannot be confirmed.", host),
+                );
 
+                serde_json::to_value(&err_log_info).ok()
+            })
+            .collect();
+        
+
+        // let futures = err_log_list.into_iter().map(|doc| {
+        //     /* Captured for use within an asunc move block */
+        //     let index_name = index_name.to_string();
+        //     async move {
+        //         mon_es.post_doc(&index_name, doc).await
+        //     }
+        // });
+
+        //mon_es.post_doc(&index_name, document).await?;
+        
+        // let futures = err_log_list
+        //     .into_iter()
+        //     .map(|doc| mon_es.post_doc(index_name, document));
+        
+        Ok(())
+    }
+    
+    // #[doc = "Function that stores error logs in Elasticsearch"]
+    // async fn put_error_logs(&self, error_log_info: ErrorLogInfo) -> anyhow::Result<()> {
+
+        
+        
+    //     Ok(())
+    // }
 
 }
