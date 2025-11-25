@@ -79,8 +79,8 @@ async fn main() {
 
     /* 대상 Elasticsearch DB 커넥션 정보 리스트 */
     let es_infos_vec: Vec<EsRepositoryImpl> = initialize_db_clients().unwrap_or_else(|e| {
-        error!("[Error][main()] Unable to retrieve 'Elasticsearch' connection information.: {:?}", e);
-        panic!("[Error][main()] Unable to retrieve 'Elasticsearch' connection information.: {:?}", e)
+        error!("[main()] Unable to retrieve 'Elasticsearch' connection information.: {:?}", e);
+        panic!("[main()] Unable to retrieve 'Elasticsearch' connection information.: {:?}", e)
     });
 
     /* 실행환경에 따라 분류 */

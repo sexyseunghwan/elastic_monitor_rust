@@ -20,6 +20,11 @@ static MON_ELASTIC_CONN_SEMAPHORE_POOL: once_lazy<Vec<Arc<EsRepositoryImpl>>> = 
         let es_id: &String = mon_es_config.es_id();
         let es_pw: &String = mon_es_config.es_pw();
         let pool_cnt: usize = mon_es_config.pool_cnt;
+        
+        // config.index_pattern.as_deref(),
+        //     config.per_index_pattern.as_deref(),
+        //     config.urgent_index_pattern.as_deref(),
+        //     config.err_log_index_pattern.as_deref()
 
         (0..pool_cnt)
         .map(|_| {
@@ -131,7 +136,7 @@ pub fn initialize_db_clients() -> Result<Vec<EsRepositoryImpl>, anyhow::Error> {
             config.urgent_index_pattern.as_deref(),
             config.err_log_index_pattern.as_deref()
         )?;
-
+        
         elastic_conn_vec.push(es_helper);
     }
 

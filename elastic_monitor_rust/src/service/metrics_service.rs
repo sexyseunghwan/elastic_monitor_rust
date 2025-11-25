@@ -622,9 +622,13 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
         let now: NaiveDateTime = get_currnet_utc_naivedatetime();
         let now_str: String = format_datetime(now)?;
 
-        let cluster_index_pattern: String = self.elastic_obj
-            .get_cluster_index_pattern()
-            .ok_or_else(|| anyhow!("[ERROR][MetricServicePub->post_cluster_nodes_infos] cluster_index_pattern is empty"))?;
+        /* Monitoring Elasticsearch object information (including connections) */
+        let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
+        
+        // let cluster_index_pattern: String = self.elastic_obj
+        //     .get_cluster_index_pattern()
+        //     .ok_or_else(|| anyhow!("[MetricServicePub->post_cluster_nodes_infos] cluster_index_pattern is empty"))?;
+        //let cluster_index_pattern: String = mon_es.
         
         /* 날짜 기준으로 인덱스 이름 맵핑 */
         let index_name: String = self
@@ -639,9 +643,6 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
 
         /* 3. GET /_cat/thread_pool */
         self.get_cat_thread_pool_handle(&mut metric_vec).await?;
-
-        /* 모니터링 ES 에 POST 해줌 */
-        let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
 
         for metric in metric_vec {
             let document: Value = serde_json::to_value(&metric)?;
