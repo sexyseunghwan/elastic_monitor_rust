@@ -35,13 +35,13 @@ impl<M: MetricService, N: NotificationService> MainHandler<M, N> {
         self.cluster_nodes_check().await?;
         
         /* 2. 클러스터의 상태를 살핀다. */
-        self.cluster_health_check().await?;
+        //self.cluster_health_check().await?;
 
         /* 3. Elasitcsearch 모니터링 지표들을 Elaistcsearch 색인 */
-        self.input_es_metric_infos().await?;        
-
+        //self.input_es_metric_infos().await?;        
+        
         /* 4. 긴급 지표들에 대한 긴급 알람 서비스 */
-        self.send_alarm_urgent_infos().await?;
+        //self.send_alarm_urgent_infos().await?;
         
         Ok(())
     }
@@ -64,6 +64,8 @@ impl<M: MetricService, N: NotificationService> MainHandler<M, N> {
                 String::from("Elasticsearch Connection Failed"),
                 String::from("The connection of these hosts has been LOST.")
             );
+
+            println!("{:?}", msg_fmt);
 
             self.notification_service.send_alarm_infos(&msg_fmt).await?;
         }
@@ -124,17 +126,23 @@ impl<M: MetricService, N: NotificationService> MainHandler<M, N> {
     #[doc = "긴급 지표들에 대한 긴급 알람 서비스"]
     async fn send_alarm_urgent_infos(&self) -> Result<(), anyhow::Error> {
 
-        let urgent_infos: Vec<UrgentAlarmInfo> = self.metirc_service.get_alarm_urgent_infos().await?;
-
+        let urgent_infos: Vec<UrgentAlarmInfo> = self
+            .metirc_service
+            .get_alarm_urgent_infos()
+            .await
+            .map_err(|e| {
+                error!("[MainHandler->send_alarm_urgent_infos->get_alarm_urgent_infos] {:?}", e);
+                e
+            })?;
+        
         if !urgent_infos.is_empty() {
             let cluster_name: String = self.metirc_service.get_cluster_name(); 
             
             /* Add code that logs errors. */
-            
             let msg: MessageFormatterUrgent = MessageFormatterUrgent::new(cluster_name, urgent_infos);
             self.notification_service.send_alarm_infos(&msg).await?;
         }
-
+        
         Ok(())
     }
 

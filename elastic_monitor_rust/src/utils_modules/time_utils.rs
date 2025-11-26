@@ -42,9 +42,10 @@ pub fn make_time_range(sec_space: i64) -> Result<(NaiveDateTime, NaiveDateTime, 
     Ok((now, past, now_str, past_str))
 }
 
-pub fn convert_date_to_str<Tz, TzOut>(
+fn convert_date_to_str<Tz, TzOut>(
     time: DateTime<Tz>,
     tz: TzOut, // Timezone (Utc, Local, FixedOffset ...)
+    format: &str
 ) -> String
 where
     Tz: TimeZone,
@@ -53,6 +54,33 @@ where
     TzOut::Offset: Display,
 {
     time.with_timezone(&tz)
-        .format("%Y-%m-%dT%H:%M:%SZ")
+        .format(format)
         .to_string()
+}
+
+pub fn convert_date_to_str_full<Tz, TzOut>(
+    time: DateTime<Tz>,
+    tz: TzOut // Timezone (Utc, Local, FixedOffset ...)
+) -> String
+where 
+    Tz: TimeZone,
+    Tz::Offset: Display,
+    TzOut: TimeZone,
+    TzOut::Offset: Display,
+{
+    convert_date_to_str(time, tz, "%Y-%m-%dT%H:%M:%SZ")
+}
+
+
+pub fn convert_date_to_str_ymd<Tz, TzOut>(
+    time: DateTime<Tz>,
+    tz: TzOut // Timezone (Utc, Local, FixedOffset ...)
+) -> String
+where 
+    Tz: TimeZone,
+    Tz::Offset: Display,
+    TzOut: TimeZone,
+    TzOut::Offset: Display,
+{
+    convert_date_to_str(time, tz, "%Y%m%d")
 }

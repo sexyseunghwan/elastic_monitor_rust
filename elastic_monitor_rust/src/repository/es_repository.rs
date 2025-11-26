@@ -20,20 +20,27 @@ static MON_ELASTIC_CONN_SEMAPHORE_POOL: once_lazy<Vec<Arc<EsRepositoryImpl>>> = 
         let es_id: &String = mon_es_config.es_id();
         let es_pw: &String = mon_es_config.es_pw();
         let pool_cnt: usize = mon_es_config.pool_cnt;
-        
-        // config.index_pattern.as_deref(),
-        //     config.per_index_pattern.as_deref(),
-        //     config.urgent_index_pattern.as_deref(),
-        //     config.err_log_index_pattern.as_deref()
+        let index_pattern: &String = mon_es_config.index_pattern();
+        let per_index_pattern: &String = mon_es_config.per_index_pattern();
+        let urgent_index_pattern: &String = mon_es_config.urgent_index_pattern();
+        let err_log_index_pattern: &String = mon_es_config.err_log_index_pattern();
 
         (0..pool_cnt)
         .map(|_| {
-            match EsRepositoryImpl::new(cluster_name, es_host.clone(), es_id, es_pw, None, None, None, None) {
-                Ok(repo) => Arc::new(repo),
-                Err(err) => {
-                    error!("[MON_ELASTIC_CONN_SEMAPHORE_POOL] Failed to create repository: {}", err);
-                    panic!("Failed to initialize monitoring connection pool: {}", err);
-                }
+            match EsRepositoryImpl::new(
+                cluster_name, 
+                es_host.clone(), 
+                es_id, 
+                es_pw, 
+                Some(index_pattern), 
+                Some(per_index_pattern), 
+                Some(urgent_index_pattern), 
+                Some(err_log_index_pattern)) {
+                    Ok(repo) => Arc::new(repo),
+                    Err(err) => {
+                        error!("[MON_ELASTIC_CONN_SEMAPHORE_POOL] Failed to create repository: {}", err);
+                        panic!("Failed to initialize monitoring connection pool: {}", err);
+                    }
             }
         })
         .collect()
@@ -277,7 +284,7 @@ impl EsRepository for EsRepositoryImpl {
             Ok(response_body)
         } else {
             let error_message: String = format!(
-                "[Elasticsearch Error][get_indices_info()] Failed to GET document: Status Code: {}",
+                "[EsRepositoryImpl->get_indices_info()] Failed to GET document: Status Code: {}",
                 response.status_code()
             );
             Err(anyhow!(error_message))
@@ -305,7 +312,7 @@ impl EsRepository for EsRepositoryImpl {
             Ok(resp)
         } else {
             let error_message: String = format!(
-                "[Elasticsearch Error][get_health_info()] Failed to GET document: Status Code: {}",
+                "[EsRepositoryImpl->get_health_info()] Failed to GET document: Status Code: {}",
                 response.status_code()
             );
             Err(anyhow!(error_message))
@@ -362,7 +369,7 @@ impl EsRepository for EsRepositoryImpl {
             Ok(resp)
         } else {
             let error_message: String = format!(
-                "[Elasticsearch Error][get_node_stats()] Failed to GET document: Status Code: {}",
+                "[EsRepositoryImpl->get_node_stats()] Failed to GET document: Status Code: {}",
                 response.status_code()
             );
             Err(anyhow!(error_message))
@@ -394,7 +401,7 @@ impl EsRepository for EsRepositoryImpl {
             Ok(resp)
         } else {
             let error_message: String = format!(
-                "[Elasticsearch Error][get_specific_index_info()] Failed to GET document: Status Code: {}",
+                "[EsRepositoryImpl->get_specific_index_info] Failed to GET document: Status Code: {}",
                 response.status_code()
             );
             Err(anyhow!(error_message))
@@ -428,7 +435,7 @@ impl EsRepository for EsRepositoryImpl {
             Ok(resp)
         } else {
             let error_message: String = format!(
-                "[Elasticsearch Error][get_cat_shards()] Failed to GET document: Status Code: {}",
+                "[EsRepositoryImpl->get_cat_shards()] Failed to GET document: Status Code: {}",
                 response.status_code()
             );
             Err(anyhow!(error_message))
@@ -455,7 +462,7 @@ impl EsRepository for EsRepositoryImpl {
             Ok(body)
         } else {
             let msg: String = format!(
-                "[Elasticsearch Error][get_cat_thread_pool()] Failed to GET thread pool info: Status Code: {}",
+                "[EsRepositoryImpl->get_cat_thread_pool()] Failed to GET thread pool info: Status Code: {}",
                 response.status_code()
             );
             Err(anyhow!(msg))
@@ -495,7 +502,7 @@ impl EsRepository for EsRepositoryImpl {
             Ok(())
         } else {
             let error_message: String = format!(
-                "[Elasticsearch Error][post_doc()] Failed to index document: Status Code: {}",
+                "[EsRepositoryImpl->post_doc()] Failed to index document: Status Code: {}",
                 response.status_code()
             );
             Err(anyhow!(error_message))
@@ -539,7 +546,7 @@ impl EsRepository for EsRepositoryImpl {
         } else {
             let error_body: String = response.text().await?;
             Err(anyhow!(
-                "[Elasticsearch Error][get_search_query_dto] response status is failed: {:?}",
+                "[EsRepositoryImpl->get_search_query_dto] response status is failed: {:?}",
                 error_body
             ))
         }
@@ -574,5 +581,10 @@ impl EsRepository for EsRepositoryImpl {
     #[doc = "Cluster 지표중 긴급하게 모니터링 해야할 인덱스 패턴 형식을 반환"]
     fn get_cluster_index_urgent_pattern(&self) -> Option<String> {
         self.urgent_index_pattern.clone()
+    }
+    
+    #[doc = "Function that returns the error log index pattern format among cluster metrics."]
+    fn get_cluster_index_error_pattern(&self) -> Option<String> {
+        self.err_log_index_pattern.clone()
     }
 }

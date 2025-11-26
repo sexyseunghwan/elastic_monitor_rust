@@ -51,8 +51,8 @@ impl TelebotRepository for TelebotRepositoryPub {
         });
 
         //let client: &once_lazy<Client> = &REQ_CLIENT;
-
-        // 최대 3번의 시도를 수행
+        
+        /* Perform up to three bot connection attempts. */
         for try_cnt in 0..3 {
             match self.try_send(&url, &body).await {
                 Ok(_) => {

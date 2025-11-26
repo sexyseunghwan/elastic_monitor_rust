@@ -365,10 +365,10 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
                 let breaker_request: BreakerInfo = self.get_breaker_info(node_info, "request")?;
                 let breaker_fielddata: BreakerInfo = self.get_breaker_info(node_info, "fielddata")?;
                 /* 8.x 버전 */
-                //let breaker_inflight_requests: BreakerInfo = self.get_breaker_info(node_info, "inflight_requests")?;
+                let breaker_inflight_requests: BreakerInfo = self.get_breaker_info(node_info, "inflight_requests")?;
                 
                 /* 7.x 버전 */
-                let breaker_inflight_requests: BreakerInfo = self.get_breaker_info(node_info, "in_flight_requests")?;
+                //let breaker_inflight_requests: BreakerInfo = self.get_breaker_info(node_info, "in_flight_requests")?;
                 
                 let breaker_parent: BreakerInfo = self.get_breaker_info(node_info, "parent")?;                
                 
@@ -480,7 +480,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
 
             Ok(index_metric_info)
         } else {
-            Err(anyhow!("[Error][MetricService->get_index_stats_handle] No _all.total section in stats response"))
+            Err(anyhow!("[MetricService->get_index_stats_handle] No _all.total section in stats response"))
         }
     }
 
@@ -625,15 +625,14 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
         /* Monitoring Elasticsearch object information (including connections) */
         let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
         
-        // let cluster_index_pattern: String = self.elastic_obj
-        //     .get_cluster_index_pattern()
-        //     .ok_or_else(|| anyhow!("[MetricServicePub->post_cluster_nodes_infos] cluster_index_pattern is empty"))?;
-        //let cluster_index_pattern: String = mon_es.
+        let cluster_index_pattern: String = mon_es
+            .get_cluster_index_pattern()
+            .ok_or_else(|| anyhow!("[MetricServiceImpl->post_cluster_nodes_infos] cluster_index_pattern is empty"))?;
         
         /* 날짜 기준으로 인덱스 이름 맵핑 */
         let index_name: String = self
             .get_today_index_name(&cluster_index_pattern, now)?;
-
+        
         /* 1. GET /_nodes/stats */
         self.get_nodes_stats_handle(&mut metric_vec, &now_str)
             .await?;
@@ -659,10 +658,12 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
         let now: NaiveDateTime = get_currnet_utc_naivedatetime();
         let now_str: String = format_datetime(now)?;
 
-        let cluster_index_monitor_pattern: String = self.elastic_obj
-            .get_cluster_index_monitoring_pattern()
-            .ok_or_else(|| anyhow!("[ERROR][MetricServicePub->post_cluster_index_infos] cluster_index_monitor_pattern is empty"))?;
+        let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
 
+        let cluster_index_monitor_pattern: String = mon_es
+            .get_cluster_index_monitoring_pattern()
+            .ok_or_else(|| anyhow!("[MetricServiceImpl->post_cluster_index_infos] cluster_index_monitor_pattern is empty"))?;
+    
         /* 인덱스 이름 생성 */ 
         let index_name: String = self
             .get_today_index_name(&cluster_index_monitor_pattern, now)?;
@@ -675,14 +676,19 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
             .into_iter()
             .filter(|elem| *elem.cluster_name() == cluster_name)
             .collect();
-
-        let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
-
+        
         for elem in index_vec {
-            let index_matric_info: IndexMetricInfo = self
+            /* You should also consider cases where a specific index is NOT currently present in Elasticsearch DB */
+            let index_matric_info: IndexMetricInfo = match self
                 .get_index_stats_handle(elem.index_name(), &now_str)
-                .await?;
-
+                .await {
+                    Ok(index_matric_info) => index_matric_info,
+                    Err(e) => {
+                        error!("[MetricServiceImpl->post_cluster_index_infos] {:?}", e);
+                        continue
+                    }
+                };
+            
             let document: Value = serde_json::to_value(&index_matric_info)?;
             mon_es.post_doc(&index_name, document).await?;
         }
@@ -695,9 +701,11 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
         
         let (now, _past, now_str, past_str) = make_time_range(20)?;
         
-        let cluster_index_urgent_pattern: String = self.elastic_obj
+        let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
+        
+        let cluster_index_urgent_pattern: String = mon_es
             .get_cluster_index_urgent_pattern()
-            .ok_or_else(|| anyhow!("[ERROR][MetricServicePub->get_alarm_urgent_infos] cluster_index_monitor_pattern is empty"))?;
+            .ok_or_else(|| anyhow!("[MetricServiceImpl->get_alarm_urgent_infos] cluster_index_monitor_pattern is empty"))?;
 
         /* 인덱스 이름 생성 */ 
         let index_name: String = self
@@ -711,19 +719,18 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
         let host_ips: Vec<String> = self.extract_host_ips();
         
         if host_ips.is_empty() {
-            warn!("[Warn][MetricService->send_alarm_urgent_infos] No host IPs found. Skipping query.");
+            warn!("[Warn][MetricServiceImpl->send_alarm_urgent_infos] No host IPs found. Skipping query.");
             return Ok(vec![]);
         }
         
         /* 긴급 지표를 쿼리하기 위함. */
         let query: Value = self.build_urgent_query(&host_ips, &past_str, &now_str);
-        let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
         let urgent_infos: Vec<UrgentInfo> = mon_es
             .get_search_query::<UrgentInfo>(&query, &index_name)
             .await?;
 
         if urgent_infos.is_empty() {
-            info!("[Info][MetricService->send_alarm_urgent_infos] The `urgent_infos` vector is empty.");
+            info!("[MetricServiceImpl->send_alarm_urgent_infos] The `urgent_infos` vector is empty.");
             return Ok(vec![]);
         }
         
@@ -747,7 +754,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
                             Some(_) => None,
                             None => {
                                 error!(
-                                    "[Error][MetricService->send_alarm_urgent_infos] Missing value for metric '{}'",
+                                    "[MetricServiceImpl->send_alarm_urgent_infos] Missing value for metric '{}'",
                                     metric
                                 );
                                 None
@@ -760,12 +767,15 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
         Ok(urgent_alarm_infos)
     }
     
-    #[doc = ""]
+    #[doc = "Function to load node connection error logs into the monitorin Elasticsearch DB"]
     async fn put_node_conn_err_infos(&self, cluster_name: &str, fail_hosts: &[String]) -> anyhow::Result<()> {
-        
+
         let now_utc: DateTime<Utc> = Utc::now();
         let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
-        //let err_log_index = format!("{}", mon_es.urgent_index_pattern());
+        
+        let err_log_index: String = mon_es
+            .get_cluster_index_error_pattern()
+            .ok_or_else(|| anyhow!("[MetricServiceImpl->put_node_conn_err_infos] err_log_index is empty"))?;
         
         let err_log_list: Vec<Value> = fail_hosts
             .iter()
@@ -773,8 +783,8 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
                 let err_log_info = ErrorLogInfo::new(
                     cluster_name.to_string(),
                     host.to_string(),
-                    convert_date_to_str(now_utc, Utc),
-                    "Elasticsearch node connection failure".into(),
+                    convert_date_to_str_full(now_utc, Utc),
+                    "Node connection failure".into(),
                     format!("Connection to node {} cannot be confirmed.", host),
                 );
 
@@ -782,29 +792,28 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
             })
             .collect();
         
-
-        // let futures = err_log_list.into_iter().map(|doc| {
-        //     /* Captured for use within an asunc move block */
-        //     let index_name = index_name.to_string();
-        //     async move {
-        //         mon_es.post_doc(&index_name, doc).await
-        //     }
-        // });
-
-        //mon_es.post_doc(&index_name, document).await?;
+        let futures = err_log_list.into_iter().map(|doc| {
+            let index_name: String = format!("{}{}", err_log_index, convert_date_to_str_ymd(now_utc, Utc));
+            let mon_es: EsRepositoryImpl = mon_es.clone();
+            async move {
+                mon_es.post_doc(&index_name, doc).await
+            }
+        });
         
-        // let futures = err_log_list
-        //     .into_iter()
-        //     .map(|doc| mon_es.post_doc(index_name, document));
+        let results: Vec<std::result::Result<(), anyhow::Error>> = futures::future::join_all(futures).await;
+
+        for (idx, result) in results.into_iter().enumerate() {
+            if let Err(e) = result {
+                error!("[MetricServiceImpl->put_node_conn_err_infos] Failed to post error log #{}: {:?}", idx, e);
+            }
+        }
         
         Ok(())
     }
     
+
     // #[doc = "Function that stores error logs in Elasticsearch"]
     // async fn put_error_logs(&self, error_log_info: ErrorLogInfo) -> anyhow::Result<()> {
-
-        
-        
     //     Ok(())
     // }
 

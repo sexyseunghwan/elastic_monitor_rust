@@ -20,4 +20,5 @@ pub trait EsRepository {
     fn get_cluster_index_pattern(&self) -> Option<String>;
     fn get_cluster_index_monitoring_pattern(&self) -> Option<String>;
     fn get_cluster_index_urgent_pattern(&self) -> Option<String>;
+    fn get_cluster_index_error_pattern(&self) -> Option<String>;
 }

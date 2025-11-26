@@ -5,5 +5,5 @@ use crate::common::*;
 pub struct SmtpConfig {
     pub smtp_name: String,
     pub credential_id: String,
-    pub credential_pw: String,
+    pub credential_pw: String
 }
