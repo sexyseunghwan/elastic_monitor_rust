@@ -767,9 +767,14 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
         Ok(urgent_alarm_infos)
     }
     
+    // #[doc = "Function that stores error logs in Elasticsearch"]
+    // async fn put_error_logs(&self, error_log_info: ErrorLogInfo) -> anyhow::Result<()> {
+    //     Ok(())
+    // }
+    
     #[doc = "Function to load node connection error logs into the monitorin Elasticsearch DB"]
     async fn put_node_conn_err_infos(&self, cluster_name: &str, fail_hosts: &[String]) -> anyhow::Result<()> {
-
+        
         let now_utc: DateTime<Utc> = Utc::now();
         let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
         
@@ -810,11 +815,4 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
         
         Ok(())
     }
-    
-
-    // #[doc = "Function that stores error logs in Elasticsearch"]
-    // async fn put_error_logs(&self, error_log_info: ErrorLogInfo) -> anyhow::Result<()> {
-    //     Ok(())
-    // }
-
 }

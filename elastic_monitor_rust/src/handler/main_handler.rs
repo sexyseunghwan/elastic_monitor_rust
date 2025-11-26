@@ -65,8 +65,6 @@ impl<M: MetricService, N: NotificationService> MainHandler<M, N> {
                 String::from("The connection of these hosts has been LOST.")
             );
 
-            println!("{:?}", msg_fmt);
-
             self.notification_service.send_alarm_infos(&msg_fmt).await?;
         }
 

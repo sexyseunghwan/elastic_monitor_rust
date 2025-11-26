@@ -27,14 +27,8 @@ pub struct NotificationServiceImpl {
 impl NotificationServiceImpl {
 
     pub fn new() -> Self {
-        /* 개발환경/운영환경에 나눠서 생성자 생성방식 변경 */
-        let use_case: Arc<UseCaseConfig> = get_usecase_config_info();
 
-        let email_receiver_info: &once_lazy<String> = if use_case.use_case() == "prod" {
-            &EMAIL_RECEIVER_PATH
-        } else {
-            &EMAIL_RECEIVER_DEV_PATH
-        };
+        let email_receiver_info: &once_lazy<String> = &EMAIL_RECEIVER_PATH;
 
         let receiver_email_list: ReceiverEmailList =
             match read_toml_from_file::<ReceiverEmailList>(email_receiver_info) {
@@ -50,7 +44,6 @@ impl NotificationServiceImpl {
             };
         
         NotificationServiceImpl { email_list: receiver_email_list }
-
     }
 
     #[doc = "Telegram 을 통해서 문제를 전파해주는 함수"]
@@ -100,11 +93,11 @@ impl NotificationServiceImpl {
     // }
 
     #[doc = "Function that propagates issues via I-Mailer - for isolated networks"]
-    async fn send_alarm_to_imailer<T: MessageFormatter + Sync + Send>(
+    async fn send_alarm_to_imailer(
         &self,
         email_subject: &str,
         html_content: &str,
-        receiver_email_list: ReceiverEmailList 
+        receiver_email_list: &ReceiverEmailList
     ) -> anyhow::Result<()> {
         
         let sql_server_repo: Arc<SqlServerRepositoryPub> = get_sql_server_repo();
@@ -128,11 +121,11 @@ impl NotificationServiceImpl {
     }
     
     #[doc = "Function that propagates issues via SMTP - for internet networks"]
-    async fn send_message_to_smtp<T: MessageFormatter + Sync + Send>(
+    async fn send_message_to_smtp(
         &self,
         email_subject: &str,
         html_content: &str,
-        receiver_email_list: ReceiverEmailList 
+        receiver_email_list: &ReceiverEmailList
     ) -> anyhow::Result<()> {
 
         let smtp_config: Arc<SmtpConfig> = get_smtp_config_info();
@@ -162,7 +155,7 @@ impl NotificationServiceImpl {
         Ok(())
     }
 
-     #[doc = r#"
+    #[doc = r#"
         Asynchronous function that sends HTML format email to individual recipient.
 
         1. Creates email message object and sets sender/recipient/subject/body
@@ -231,24 +224,29 @@ impl NotificationService for NotificationServiceImpl {
         msg_fmt: &T,
     ) -> Result<(), anyhow::Error> {
         
-        /* 현재 프로그램이 운영용/개발용인지 판단 */
-        // let use_case: Arc<UseCaseConfig> = get_usecase_config_info();
-
-        // if use_case.use_case == "prod" {
-        //     /* Telegram 메시지 Send */
-        //     self.send_alarm_to_telegram(msg_fmt).await?;
-        // }
-
-        /* Send Message by the Telegram bot */
+        /* 1. Send Message by the Telegram bot */
         self.send_alarm_to_telegram(msg_fmt).await?;
-
+        
+        /* 2. Send Message by the Email */
+        let email_format: HtmlContents = msg_fmt.get_email_format();
+        
+        /* Read HTML files */
+        let mut html_template: String = std::fs::read_to_string(&email_format.view_page_dir)?;
+        
+        /* It performs data substitution based on the read HTML file. */
+        for (key, value) in &email_format.html_form_map {
+            html_template = html_template.replace(&format!("{{{}}}", key), value)
+        }
+        
+        let mail_subject: &str = "[Elasticsearch] Error Alert";
+        let receivers: &ReceiverEmailList = self.email_list();
+        
         /* Send message using iMailer */
         //self.send_alarm_to_imailer(msg_fmt).await?;
         
-        /* Send messages using SMTP */
+        /* Send messages using SMTP - internet mang */
+        self.send_message_to_smtp(mail_subject, &html_template, receivers).await?;
         
-
         Ok(())
     } 
 }
-
