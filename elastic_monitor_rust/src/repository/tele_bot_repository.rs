@@ -51,7 +51,7 @@ impl TelebotRepository for TelebotRepositoryPub {
         });
 
         //let client: &once_lazy<Client> = &REQ_CLIENT;
-        
+
         /* Perform up to three bot connection attempts. */
         for try_cnt in 0..3 {
             match self.try_send(&url, &body).await {

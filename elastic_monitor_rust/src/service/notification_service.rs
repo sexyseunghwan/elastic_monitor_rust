@@ -3,31 +3,28 @@ use crate::common::*;
 use crate::repository::sql_server_repository::*;
 use crate::repository::tele_bot_repository::*;
 
-use crate::traits::notification_service_trait::*;
-use crate::traits::sql_server_repository_trait::*;
+use crate::traits::{
+    repository::sql_server_repository_trait::*, service::notification_service_trait::*,
+};
 
 use crate::env_configuration::env_config::*;
 
 use crate::utils_modules::io_utils::*;
 
 use crate::model::{
+    configs::{config::*, smtp_config::*, use_case_config::*},
     message_formatter_dto::message_formatter::*,
-    receiver_email_list::*, 
-    configs::{use_case_config::*, config::*, smtp_config::*},
+    receiver_email_list::*,
 };
-
 
 #[derive(Clone, Debug, Getters)]
 #[getset(get = "pub")]
 pub struct NotificationServiceImpl {
-    pub email_list: ReceiverEmailList
+    pub email_list: ReceiverEmailList,
 }
 
-
 impl NotificationServiceImpl {
-
     pub fn new() -> Self {
-
         let email_receiver_info: &once_lazy<String> = &EMAIL_RECEIVER_PATH;
 
         let receiver_email_list: ReceiverEmailList =
@@ -42,30 +39,34 @@ impl NotificationServiceImpl {
                     panic!("{:?}", e)
                 }
             };
-        
-        NotificationServiceImpl { email_list: receiver_email_list }
+
+        NotificationServiceImpl {
+            email_list: receiver_email_list,
+        }
     }
 
     #[doc = "Telegram 을 통해서 문제를 전파해주는 함수"]
-    async fn send_alarm_to_telegram<T: MessageFormatter + Sync + Send>(&self,  msg_fmt: &T) -> Result<(), anyhow::Error> {
-
+    async fn send_alarm_to_telegram<T: MessageFormatter + Sync + Send>(
+        &self,
+        msg_fmt: &T,
+    ) -> Result<(), anyhow::Error> {
         let tele_service: Arc<TelebotRepositoryPub> = get_telegram_repo();
         let telegram_format: String = msg_fmt.get_telegram_format();
         tele_service.bot_send(telegram_format.as_str()).await?;
 
         Ok(())
     }
-    
+
     // #[doc = "Function that propagates issues via I-Mailer - for isolated networks"]
     // #[allow(dead_code)]
     // async fn send_alarm_to_imailer<T: MessageFormatter + Sync + Send>(&self, msg_fmt: &T) -> Result<(), anyhow::Error> {
 
     //     let email_format: HtmlContents = msg_fmt.get_email_format();
     //     let sql_server_repo: Arc<SqlServerRepositoryPub> = get_sql_server_repo();
-        
+
     //     /* html 파일 읽기 */
     //     let mut html_template: String = std::fs::read_to_string(&email_format.view_page_dir)?;
-        
+
     //     /* 읽은 html을 기준으로 데이터 치환 */
     //     for (key, value) in &email_format.html_form_map {
     //         html_template = html_template.replace(&format!("{{{}}}", key), value)
@@ -74,7 +75,7 @@ impl NotificationServiceImpl {
     //     let mail_subject: &str = "[Elasticsearch] Error Alert";
 
     //     for email in self.email_list().receivers() {
-            
+
     //         match sql_server_repo.execute_imailer_procedure(email.email_id(), mail_subject, &html_template).await {
     //             Ok(_) => {
     //                 info!("Successfully sent email to {}", email.email_id());
@@ -97,48 +98,49 @@ impl NotificationServiceImpl {
         &self,
         email_subject: &str,
         html_content: &str,
-        receiver_email_list: &ReceiverEmailList
+        receiver_email_list: &ReceiverEmailList,
     ) -> anyhow::Result<()> {
-        
         let sql_server_repo: Arc<SqlServerRepositoryPub> = get_sql_server_repo();
 
         for email in receiver_email_list.receivers() {
-            match sql_server_repo.execute_imailer_procedure(email.email_id(), email_subject, &html_content).await {
+            match sql_server_repo
+                .execute_imailer_procedure(email.email_id(), email_subject, &html_content)
+                .await
+            {
                 Ok(_) => {
                     info!("Successfully sent email to {}", email.email_id());
-                },
+                }
                 Err(e) => {
                     error!(
                         "[NotificationServiceImpl->send_alarm_to_imailer] Failed to send mail to {} : {:?}",
                         email.email_id(),
                         e
                     )
-                } 
+                }
             }
         }
 
         Ok(())
     }
-    
+
     #[doc = "Function that propagates issues via SMTP - for internet networks"]
     async fn send_message_to_smtp(
         &self,
         email_subject: &str,
         html_content: &str,
-        receiver_email_list: &ReceiverEmailList
+        receiver_email_list: &ReceiverEmailList,
     ) -> anyhow::Result<()> {
-
         let smtp_config: Arc<SmtpConfig> = get_smtp_config_info();
-        
+
         let tasks = receiver_email_list.receivers.iter().map(|receiver| {
-                let email_id: &String = receiver.email_id();
-                self.send_html_email_to_receiver(
-                    &smtp_config,
-                    email_id.as_str(),
-                    email_subject,
-                    html_content,
-                )
-            });
+            let email_id: &String = receiver.email_id();
+            self.send_html_email_to_receiver(
+                &smtp_config,
+                email_id.as_str(),
+                email_subject,
+                html_content,
+            )
+        });
 
         let results: Vec<Result<String, anyhow::Error>> = join_all(tasks).await;
 
@@ -151,7 +153,7 @@ impl NotificationServiceImpl {
                 ),
             }
         }
-        
+
         Ok(())
     }
 
@@ -213,9 +215,7 @@ impl NotificationServiceImpl {
             Err(e) => Err(anyhow!("{:?} : Failed to send email to {} ", e, email_id)),
         }
     }
-
 }
-
 
 #[async_trait]
 impl NotificationService for NotificationServiceImpl {
@@ -223,30 +223,30 @@ impl NotificationService for NotificationServiceImpl {
         &self,
         msg_fmt: &T,
     ) -> Result<(), anyhow::Error> {
-        
         /* 1. Send Message by the Telegram bot */
         self.send_alarm_to_telegram(msg_fmt).await?;
-        
+
         /* 2. Send Message by the Email */
         let email_format: HtmlContents = msg_fmt.get_email_format();
-        
+
         /* Read HTML files */
         let mut html_template: String = std::fs::read_to_string(&email_format.view_page_dir)?;
-        
+
         /* It performs data substitution based on the read HTML file. */
         for (key, value) in &email_format.html_form_map {
             html_template = html_template.replace(&format!("{{{}}}", key), value)
         }
-        
+
         let mail_subject: &str = "[Elasticsearch] Error Alert";
         let receivers: &ReceiverEmailList = self.email_list();
-        
+
         /* Send message using iMailer */
         //self.send_alarm_to_imailer(msg_fmt).await?;
-        
+
         /* Send messages using SMTP - internet mang */
-        self.send_message_to_smtp(mail_subject, &html_template, receivers).await?;
-        
+        self.send_message_to_smtp(mail_subject, &html_template, receivers)
+            .await?;
+
         Ok(())
-    } 
+    }
 }

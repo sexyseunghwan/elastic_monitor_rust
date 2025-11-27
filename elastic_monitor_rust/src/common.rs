@@ -1,19 +1,18 @@
 pub use std::{
     collections::HashMap,
+    fmt::Display,
     future::Future,
     io::Write,
+    ops::Deref,
     str::{FromStr, Lines},
     sync::Arc,
     thread::sleep as std_sleep,
-    ops::Deref,
-    fmt::Display
 };
 
 pub use tokio::{
-    time::{sleep,Duration},
-    sync::{OwnedSemaphorePermit, Semaphore}
+    sync::{OwnedSemaphorePermit, Semaphore},
+    time::{sleep, Duration},
 };
-
 
 pub use log::{error, info, warn};
 
@@ -27,7 +26,7 @@ pub use dotenv::dotenv;
 
 pub use reqwest::Client;
 
-pub use futures::{StreamExt,TryStreamExt};
+pub use futures::{StreamExt, TryStreamExt};
 
 pub use elasticsearch::{
     cat::{CatIndicesParts, CatShardsParts, CatThreadPoolParts},
@@ -55,8 +54,7 @@ pub use async_trait::async_trait;
 
 pub use once_cell::sync::Lazy as once_lazy;
 
-
-pub use chrono::{DateTime, NaiveDateTime, Utc, TimeZone};
+pub use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 
 pub use lettre::{
     message::{MultiPart, SinglePart},

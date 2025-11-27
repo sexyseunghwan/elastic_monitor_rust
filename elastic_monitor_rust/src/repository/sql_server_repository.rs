@@ -6,29 +6,31 @@ use crate::model::sqlserver::rdb_config::*;
 
 use crate::env_configuration::env_config::*;
 
-use crate::traits::sql_server_repository_trait::*;
+use crate::traits::repository::sql_server_repository_trait::*;
 
 #[doc = "전역 Sqlserver Client 인스턴스를 선언"]
-static SQL_SERVER_REPO: once_lazy<Arc<SqlServerRepositoryPub>> = once_lazy::new(initialize_sqlserver_client);
+static SQL_SERVER_REPO: once_lazy<Arc<SqlServerRepositoryPub>> =
+    once_lazy::new(initialize_sqlserver_client);
 
 #[derive(Getters, new)]
 #[getset(get = "pub")]
 pub struct SqlServerRepositoryPub {
-    pub pool: Pool
+    pub pool: Pool,
 }
 
 #[doc = "SQL Server 커넥션 풀 초기화 - 애플리케이션 시작 시 1회만 호출"]
 fn initialize_sqlserver_client() -> Arc<SqlServerRepositoryPub> {
     info!("initialize_sqlserver_client() START!");
 
-     /* TOML 로딩 */
+    /* TOML 로딩 */
     let rdb_config: RdbConfig = read_toml_from_file::<RdbConfig>(&SQL_SERVER_INFO_PATH)
         .unwrap_or_else(|_| {
-            let err_msg: &str = "[ERROR][initialize_sqlserver_client()] Cannot read RdbConfig object.";
+            let err_msg: &str =
+                "[ERROR][initialize_sqlserver_client()] Cannot read RdbConfig object.";
             error!("{}", err_msg);
             panic!("{}", err_msg)
         });
-    
+
     let conn_str: String = format!(
         "Server={},{};Database={};User Id={};Password={};TrustServerCertificate=true;",
         rdb_config.host(),
@@ -57,7 +59,6 @@ fn initialize_sqlserver_client() -> Arc<SqlServerRepositoryPub> {
             }
         };
 
-
     Arc::new(SqlServerRepositoryPub::new(pool))
 }
 
@@ -68,16 +69,19 @@ pub fn get_sql_server_repo() -> Arc<SqlServerRepositoryPub> {
 
 #[async_trait]
 impl SqlServerRepository for SqlServerRepositoryPub {
-
     #[doc = "SQL Server 아이메일러 관련 프로시저 호출"]
-    async fn execute_imailer_procedure(&self, send_email: &str, email_subject: &str, email_content: &str) -> Result<(), anyhow::Error> {
-
+    async fn execute_imailer_procedure(
+        &self,
+        send_email: &str,
+        email_subject: &str,
+        email_content: &str,
+    ) -> Result<(), anyhow::Error> {
         /* 풀에서 커넥션 가져오기 */
         let pool: &deadpool_tiberius::deadpool::managed::Pool<Manager> = self.pool();
         let mut client: deadpool_tiberius::deadpool::managed::Object<Manager> = pool.get().await?;
 
         /* 프로시저 호출 */
-        let results: Vec<Vec<Row>>= client
+        let results: Vec<Vec<Row>> = client
             .query(
                 r#"
                 DECLARE @return_value INT;
@@ -106,14 +110,16 @@ impl SqlServerRepository for SqlServerRepositoryPub {
             .await?
             .into_results()
             .await?;
-        
 
         /* 4. 결과 읽기 */
         if let Some(row) = results.first().and_then(|set| set.first()) {
             let return_code: i32 = row.get("return_code").unwrap_or(0);
             if return_code == 0 {
-                error!("[ERROR][execute_imailer_procedure] proc failure - return_code={}", return_code);
-            } 
+                error!(
+                    "[ERROR][execute_imailer_procedure] proc failure - return_code={}",
+                    return_code
+                );
+            }
         } else {
             error!("[ERROR][execute_imailer_procedure] no return row");
         }

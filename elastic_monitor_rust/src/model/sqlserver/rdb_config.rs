@@ -7,5 +7,5 @@ pub struct RdbConfig {
     pub port: String,
     pub user_id: String,
     pub user_pw: String,
-    pub db_schema: String
+    pub db_schema: String,
 }

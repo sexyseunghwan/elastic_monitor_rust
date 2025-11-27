@@ -1,6 +1,5 @@
 use crate::common::*;
 
-
 #[doc = "toml 파일을 읽어서 객체로 변환해주는 함수"]
 /// # Arguments
 /// * `file_path` - 읽을 대상 toml 파일이 존재하는 경로

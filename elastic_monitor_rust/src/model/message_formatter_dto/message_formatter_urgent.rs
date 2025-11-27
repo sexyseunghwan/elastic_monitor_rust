@@ -26,10 +26,12 @@ impl MessageFormatter for MessageFormatterUrgent {
         msg_contents.push_str(format!("==== Error Alert [{}] ====\n", self.cluster_name).as_str());
         msg_contents.push_str(format!("[cluster name]\n{}\n\n", self.cluster_name).as_str());
 
-        msg_contents
-                .push_str("[err_subject]\n Emergency Indicator Abnormal \n\n".to_string().as_str());
-        msg_contents
-            .push_str("[err_detail]\n");
+        msg_contents.push_str(
+            "[err_subject]\n Emergency Indicator Abnormal \n\n"
+                .to_string()
+                .as_str(),
+        );
+        msg_contents.push_str("[err_detail]\n");
 
         for urgent_info in self.urgent_infos() {
             msg_contents.push_str(
@@ -59,9 +61,9 @@ impl MessageFormatter for MessageFormatterUrgent {
                     <td style='border: 1px solid #ddd; padding: 8px; text-align: left;'>{}</td>
                 </tr>
                 ",
-                self.cluster_name, 
-                urgent_info.metirc_name(), 
-                urgent_info.metirc_name(), urgent_info.metic_value_str(), 
+                self.cluster_name,
+                urgent_info.metirc_name(),
+                urgent_info.metirc_name(), urgent_info.metic_value_str(),
                 urgent_info.host()
             );
 

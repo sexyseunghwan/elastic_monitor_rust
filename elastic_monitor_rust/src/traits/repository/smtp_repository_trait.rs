@@ -2,7 +2,6 @@ use crate::common::*;
 
 use crate::model::message_formatter_dto::message_formatter::*;
 
-
 #[async_trait]
 pub trait SmtpRepository {
     async fn send_message_to_receiver_html(

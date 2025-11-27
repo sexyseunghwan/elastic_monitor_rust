@@ -1,7 +1,6 @@
 use crate::common::*;
 
-use crate::model::indicies::*;
-use crate::model::message_formatter_dto::message_formatter::*;
+use crate::model::{message_formatter_dto::message_formatter::*, search_indicies::*};
 
 //use crate::env_configuration::env_config::*;
 
@@ -10,7 +9,7 @@ pub struct MessageFormatterIndex {
     pub cluster_name: String,
     pub host: Vec<String>,
     pub err_subject: String,
-    pub err_index_detail: Vec<Indicies>,
+    pub err_index_detail: Vec<SearchIndicies>,
 }
 
 impl MessageFormatter for MessageFormatterIndex {
@@ -47,8 +46,8 @@ impl MessageFormatter for MessageFormatterIndex {
                     <td style='border: 1px solid #ddd; padding: 8px; text-align: left; color: red;'>{}</td>
                     <td style='border: 1px solid #ddd; padding: 8px; text-align: left;'>{}</td>
                 </tr>",
-                self.cluster_name, 
-                self.err_subject, 
+                self.cluster_name,
+                self.err_subject,
                 host
             );
 

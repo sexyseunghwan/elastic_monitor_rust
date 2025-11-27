@@ -1,16 +1,16 @@
 use crate::common::*;
 
 use crate::model::configs::config::*;
+use crate::model::configs::smtp_config::*;
 use crate::model::message_formatter_dto::message_formatter::*;
 use crate::model::receiver_email::*;
 use crate::model::receiver_email_list::*;
-use crate::model::configs::smtp_config::*;
 
 use crate::utils_modules::io_utils::*;
 
 use crate::env_configuration::env_config::*;
 
-use crate::traits::smtp_repository_trait::*;
+use crate::traits::repository::smtp_repository_trait::*;
 
 #[doc = "전역 SMTP 통신 인스턴스를 선언"]
 static SMTP_REPO: once_lazy<Arc<SmtpRepositoryPub>> = once_lazy::new(initialize_smtp_clients);

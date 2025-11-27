@@ -9,5 +9,5 @@ pub struct ClusterInfo {
     pub index_pattern: Option<String>,
     pub per_index_pattern: Option<String>,
     pub urgent_index_pattern: Option<String>,
-    pub err_log_index_pattern: Option<String>
+    pub err_log_index_pattern: Option<String>,
 }

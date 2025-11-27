@@ -58,5 +58,5 @@ pub struct MetricInfo {
     pub breaker_request: BreakerInfo,
     pub breaker_fielddata: BreakerInfo,
     pub breaker_inflight_requests: BreakerInfo,
-    pub breaker_parent: BreakerInfo  
+    pub breaker_parent: BreakerInfo,
 }

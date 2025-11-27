@@ -12,6 +12,5 @@ pub struct SegmentInfo {
     pub segment_doc_values_memory_in_bytes: u64,
     pub segment_index_writer_memory_in_bytes: u64,
     pub segment_version_map_memory_in_bytes: u64,
-    pub segment_fixed_bit_set_memory_in_bytes: u64
-
+    pub segment_fixed_bit_set_memory_in_bytes: u64,
 }

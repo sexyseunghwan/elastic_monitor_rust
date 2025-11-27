@@ -9,11 +9,11 @@ use crate::utils_modules::io_utils::*;
 
 use crate::env_configuration::env_config::*;
 
-use crate::traits::es_repository_trait::*;
+use crate::traits::repository::es_repository_trait::*;
 
 #[doc = "Elasticsearch connection pool - 모니터링용 싱글톤"]
-static MON_ELASTIC_CONN_SEMAPHORE_POOL: once_lazy<Vec<Arc<EsRepositoryImpl>>> = once_lazy::new(
-    || {
+static MON_ELASTIC_CONN_SEMAPHORE_POOL: once_lazy<Vec<Arc<EsRepositoryImpl>>> =
+    once_lazy::new(|| {
         let mon_es_config: Arc<MonElasticConfig> = get_mon_es_config_info();
         let cluster_name: &String = mon_es_config.cluster_name();
         let es_host: &Vec<String> = mon_es_config.hosts();
@@ -26,26 +26,29 @@ static MON_ELASTIC_CONN_SEMAPHORE_POOL: once_lazy<Vec<Arc<EsRepositoryImpl>>> = 
         let err_log_index_pattern: &String = mon_es_config.err_log_index_pattern();
 
         (0..pool_cnt)
-        .map(|_| {
-            match EsRepositoryImpl::new(
-                cluster_name, 
-                es_host.clone(), 
-                es_id, 
-                es_pw, 
-                Some(index_pattern), 
-                Some(per_index_pattern), 
-                Some(urgent_index_pattern), 
-                Some(err_log_index_pattern)) {
+            .map(|_| {
+                match EsRepositoryImpl::new(
+                    cluster_name,
+                    es_host.clone(),
+                    es_id,
+                    es_pw,
+                    Some(index_pattern),
+                    Some(per_index_pattern),
+                    Some(urgent_index_pattern),
+                    Some(err_log_index_pattern),
+                ) {
                     Ok(repo) => Arc::new(repo),
                     Err(err) => {
-                        error!("[MON_ELASTIC_CONN_SEMAPHORE_POOL] Failed to create repository: {}", err);
+                        error!(
+                            "[MON_ELASTIC_CONN_SEMAPHORE_POOL] Failed to create repository: {}",
+                            err
+                        );
                         panic!("Failed to initialize monitoring connection pool: {}", err);
                     }
-            }
-        })
-        .collect()
-    }
-);
+                }
+            })
+            .collect()
+    });
 
 #[doc = "세마포어 객체"]
 static SEMAPHORE: once_lazy<Arc<Semaphore>> = once_lazy::new(|| {
@@ -100,10 +103,9 @@ pub async fn get_elastic_guard_conn() -> Result<ElasticConnGuard, anyhow::Error>
     ElasticConnGuard::new().await
 }
 
-
 // #[doc = "모니터링 역할을 수행해주는 Elasticsearch DB 초기화"]
 // pub fn initialize_mon_db_client() -> Result<EsRepositoryPub, anyhow::Error> {
-    
+
 //     let cluster_config: ClusterConfig = read_toml_from_file::<ClusterConfig>(&ELASTIC_INFO_PATH)?;
 
 //     let mon_cluster: &ClusterInfo = cluster_config.clusters
@@ -123,7 +125,6 @@ pub async fn get_elastic_guard_conn() -> Result<ElasticConnGuard, anyhow::Error>
 //     Ok(es_helper)
 // }
 
-
 #[doc = "모니터링 대상이 되는 Elasticsearch DB 초기화"]
 /// # Returns
 /// * Result<Vec<EsRepositoryPub>, anyhow::Error> - 모니터링 할 대상 Elasticsearch 정보 list
@@ -141,9 +142,9 @@ pub fn initialize_db_clients() -> Result<Vec<EsRepositoryImpl>, anyhow::Error> {
             config.index_pattern.as_deref(),
             config.per_index_pattern.as_deref(),
             config.urgent_index_pattern.as_deref(),
-            config.err_log_index_pattern.as_deref()
+            config.err_log_index_pattern.as_deref(),
         )?;
-        
+
         elastic_conn_vec.push(es_helper);
     }
 
@@ -158,7 +159,7 @@ pub struct EsRepositoryImpl {
     pub index_pattern: Option<String>,
     pub per_index_pattern: Option<String>,
     pub urgent_index_pattern: Option<String>,
-    pub err_log_index_pattern: Option<String>
+    pub err_log_index_pattern: Option<String>,
 }
 
 #[derive(Debug, Getters, Clone, new)]
@@ -188,7 +189,7 @@ impl EsRepositoryImpl {
         log_index_pattern: Option<&str>,
         per_index_pattern: Option<&str>,
         urgent_index_pattern: Option<&str>,
-        err_log_index_pattern: Option<&str>
+        err_log_index_pattern: Option<&str>,
     ) -> Result<Self, anyhow::Error> {
         let mut es_clients: Vec<Arc<EsClient>> = Vec::new();
 
@@ -214,10 +215,10 @@ impl EsRepositoryImpl {
         Ok(EsRepositoryImpl {
             cluster_name: cluster_name.to_string(),
             es_clients,
-            index_pattern:      log_index_pattern.map(str::to_string),
-            per_index_pattern:  per_index_pattern.map(str::to_string),
+            index_pattern: log_index_pattern.map(str::to_string),
+            per_index_pattern: per_index_pattern.map(str::to_string),
             urgent_index_pattern: urgent_index_pattern.map(str::to_string),
-            err_log_index_pattern: err_log_index_pattern.map(str::to_string)
+            err_log_index_pattern: err_log_index_pattern.map(str::to_string),
         })
     }
 
@@ -329,7 +330,8 @@ impl EsRepository for EsRepositoryImpl {
 
             async move {
                 let response = es_pool.ping().send().await;
-                let is_success: bool = matches!(response, Ok(res) if res.status_code().is_success());
+                let is_success: bool =
+                    matches!(response, Ok(res) if res.status_code().is_success());
 
                 (es_host, is_success)
             }
@@ -497,7 +499,7 @@ impl EsRepository for EsRepositoryImpl {
                 }
             })
             .await?;
-        
+
         if response.status_code().is_success() {
             Ok(())
         } else {
@@ -567,7 +569,7 @@ impl EsRepository for EsRepositoryImpl {
 
         hosts
     }
-    
+
     #[doc = "Cluster 정보를 맵핑해줄 index pattern 형식을 반환."]
     fn get_cluster_index_pattern(&self) -> Option<String> {
         self.index_pattern.clone()
@@ -582,7 +584,7 @@ impl EsRepository for EsRepositoryImpl {
     fn get_cluster_index_urgent_pattern(&self) -> Option<String> {
         self.urgent_index_pattern.clone()
     }
-    
+
     #[doc = "Function that returns the error log index pattern format among cluster metrics."]
     fn get_cluster_index_error_pattern(&self) -> Option<String> {
         self.err_log_index_pattern.clone()

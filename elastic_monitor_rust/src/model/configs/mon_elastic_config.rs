@@ -1,6 +1,5 @@
 use crate::common::*;
 
-
 #[derive(Serialize, Deserialize, Debug, Getters)]
 #[getset(get = "pub")]
 pub struct MonElasticConfig {
@@ -12,5 +11,5 @@ pub struct MonElasticConfig {
     pub index_pattern: String,
     pub per_index_pattern: String,
     pub urgent_index_pattern: String,
-    pub err_log_index_pattern: String
+    pub err_log_index_pattern: String,
 }

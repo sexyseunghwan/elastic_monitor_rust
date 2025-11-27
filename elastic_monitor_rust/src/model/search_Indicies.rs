@@ -1,13 +1,15 @@
 use crate::common::*;
 
-#[derive(Debug, new)]
-pub struct Indicies {
+#[derive(Debug, Getters, new)]
+#[getset(get = "pub")]
+pub struct SearchIndicies {
+    pub cluster_name: String,
     pub index_name: String,
     pub health: String,
     pub status: String,
 }
 
-impl Indicies {
+impl SearchIndicies {
     pub fn get_indicies_status(&self) -> String {
         let format = format!(
             "[{}] index status is {}, open status is {}\n",
