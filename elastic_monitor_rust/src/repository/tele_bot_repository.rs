@@ -12,7 +12,7 @@ static REQ_CLIENT: once_lazy<Client> = once_lazy::new(Client::new);
 
 #[doc = "Telebot 을 전역적으로 초기화 함."]
 pub fn initialize_tele_bot_client() -> Arc<TelebotRepositoryPub> {
-    let tele_info_config: Arc<TelegramConfig> = get_telegram_config_info();
+    let tele_info_config: &TelegramConfig= get_telegram_config_info();
     let tele_repo: TelebotRepositoryPub = TelebotRepositoryPub::new(
         tele_info_config.bot_token().to_string(),
         tele_info_config.chat_room_id().to_string(),

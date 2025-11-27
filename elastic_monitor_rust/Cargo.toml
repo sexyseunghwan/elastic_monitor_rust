@@ -29,3 +29,4 @@ deadpool-tiberius = "0.1.9"
 urlencoding = "2.1"
 plotters = { version = "0.3", features = ["bitmap_backend", "bitmap_encoder"] }
 base64 = "0.22"
+cron = "0.13.0"

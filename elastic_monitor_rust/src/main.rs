@@ -89,10 +89,10 @@ async fn main() {
         )
     });
 
-    /* 실행환경에 따라 분류 */
-    let use_case_binding: Arc<UseCaseConfig> = get_usecase_config_info();
-    let use_case: &str = use_case_binding.use_case().as_str();
-
+    /* 실행환경에 따라 분류 -> 필요없어보임 */
+    // let use_case_binding: &UseCaseConfig = get_usecase_config_info();
+    // let use_case: &str = use_case_binding.use_case().as_str();
+    
     /* Handler Dependency Injection */
     for cluster in es_infos_vec {
         let metric_service: Arc<MetricServiceImpl<EsRepositoryImpl>> =
@@ -100,10 +100,10 @@ async fn main() {
         let notification_service: Arc<NotificationServiceImpl> =
             Arc::new(NotificationServiceImpl::new());
 
-        let monitoring_service: MonitorinServiceImpl<
+        let monitoring_service: MonitoringServiceImpl<
             MetricServiceImpl<EsRepositoryImpl>,
             NotificationServiceImpl,
-        > = MonitorinServiceImpl::new(
+        > = MonitoringServiceImpl::new(
             Arc::clone(&metric_service),
             Arc::clone(&notification_service),
         );

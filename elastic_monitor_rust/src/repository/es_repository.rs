@@ -14,7 +14,7 @@ use crate::traits::repository::es_repository_trait::*;
 #[doc = "Elasticsearch connection pool - 모니터링용 싱글톤"]
 static MON_ELASTIC_CONN_SEMAPHORE_POOL: once_lazy<Vec<Arc<EsRepositoryImpl>>> =
     once_lazy::new(|| {
-        let mon_es_config: Arc<MonElasticConfig> = get_mon_es_config_info();
+        let mon_es_config: &MonElasticConfig = get_mon_es_config_info();
         let cluster_name: &String = mon_es_config.cluster_name();
         let es_host: &Vec<String> = mon_es_config.hosts();
         let es_id: &String = mon_es_config.es_id();
@@ -52,7 +52,7 @@ static MON_ELASTIC_CONN_SEMAPHORE_POOL: once_lazy<Vec<Arc<EsRepositoryImpl>>> =
 
 #[doc = "세마포어 객체"]
 static SEMAPHORE: once_lazy<Arc<Semaphore>> = once_lazy::new(|| {
-    let mon_es_config: Arc<MonElasticConfig> = get_mon_es_config_info();
+    let mon_es_config: &MonElasticConfig = get_mon_es_config_info();
     Arc::new(Semaphore::new(mon_es_config.pool_cnt))
 });
 

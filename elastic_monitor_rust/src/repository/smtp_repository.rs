@@ -17,7 +17,7 @@ static SMTP_REPO: once_lazy<Arc<SmtpRepositoryPub>> = once_lazy::new(initialize_
 
 #[doc = "smtp 통신 객체를 초기화해주는 함수"]
 pub fn initialize_smtp_clients() -> Arc<SmtpRepositoryPub> {
-    let smtp_config: Arc<SmtpConfig> = get_smtp_config_info();
+    let smtp_config: &SmtpConfig = get_smtp_config_info();
     let email_receiver_info: &once_lazy<String> = &EMAIL_RECEIVER_PATH;
 
     let receiver_email_list: ReceiverEmailList =

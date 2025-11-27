@@ -1,3 +1,5 @@
+use cron::error;
+
 use crate::common::*;
 
 use crate::traits::service::{
@@ -14,19 +16,24 @@ use crate::model::{
         message_formatter_urgent::*,
     },
     search_indicies::*,
-    configs::config::*
+    configs::{
+        config::*,
+        report_config::*
+    }
 };
+
+use crate::enums::report_type::*;
 
 #[derive(Debug, new)]
 pub struct MainController<M: MonitoringService, R: ReportService> {
-    monitoring_service: M,
-    report_service: R
+    monitoring_service: Arc<M>,
+    report_service: Arc<R>
 }
 
 impl<M, R> MainController<M, R>
 where
     M: MonitoringService,
-    R: ReportService
+    R: ReportService + Send + Sync + 'static
 {
     #[doc = ""]
     pub async fn main_task(&self) -> anyhow::Result<()> {
@@ -34,17 +41,109 @@ where
         // spawn_monitor_task -- 1
         // spawn_report_task  -- 2
         
+        //let arc_monitoring_service = Arc::new(self.monitoring_service);
+
         /* Report Tasks list */
         let daily_enabled: bool = get_daily_report_config_info().enabled;
         let weekly_enabled: bool = get_weekly_report_config_info().enabled;
         let monthly_enabled: bool = get_monthly_report_config_info().enabled;
         let yearly_enabled: bool = get_yearly_report_config_info().enabled;
+        
+        /* 1. Daily report task */
+        let daily_report_handle = Self::spawn_report_task(
+            Arc::clone(&self.report_service), 
+            ReportType::Day, 
+            "daily_report_task", 
+            daily_enabled
+        );
+
+        /* 2. Weekly report task */
+         let weekly_report_handle = Self::spawn_report_task(
+            Arc::clone(&self.report_service),
+            ReportType::Week,
+            "weekly_report_task",
+            weekly_enabled
+        );
+        
+        /* 3. Monthly report task */
+         let monthly_report_handle = Self::spawn_report_task(
+            Arc::clone(&self.report_service),
+            ReportType::Month,
+            "monthly_report_task",
+            monthly_enabled
+        );
+
+        /* 4. Yearly report task */
+         let yearly_report_handle = Self::spawn_report_task(
+            Arc::clone(&self.report_service),
+            ReportType::Year,
+            "yearly_report_task",
+            yearly_enabled
+        );
+
+        /* Run all tasks in parallel and wait for termination */
+        let _ = tokio::join!(
+            daily_report_handle,
+            weekly_report_handle,
+            monthly_report_handle,
+            yearly_report_handle
+        );
 
         Ok(())
     }
+    
+    fn monitoring_task(
+        service: Arc<T>
+    ) -> tokio::task::JoinHandle<()>
+    where 
+        T: Send + Sync + 'static
+    {
+        // tokio::spawn(async move {
+        //     match service
+        //         .report_loop(report_config)
+        //         .await
+        //         {
+        //             Ok(_) => info!("[{}] Completed successfully", task_name),
+        //             Err(e) => error!("[{}] Failed with error: {:?}", task_name, e)
+        //         }
+        // })   
+    }
 
-    
-    
+    #[doc = "Spawn report task as a separate tokio task"]
+    fn spawn_report_task(
+        service: Arc<R>,
+        report_type: ReportType,
+        task_name: &str,
+        enabled: bool
+    ) -> tokio::task::JoinHandle<()>
+    where 
+        R: Send + Sync + 'static,
+    {
+        let task_name: String = task_name.to_string();
+
+         if !enabled {
+            return tokio::spawn(async move {
+                info!("[{}] Disabled. Skipping.", task_name);
+            });
+        }
+        
+        let report_config: ReportConfig = match report_type {
+            ReportType::Day => get_daily_report_config_info().clone(),
+            ReportType::Week => get_weekly_report_config_info().clone(),
+            ReportType::Month => get_monthly_report_config_info().clone(),
+            ReportType::Year => get_yearly_report_config_info().clone(),
+        };
+        
+        tokio::spawn(async move {
+            match service
+                .report_loop(report_config)
+                .await
+                {
+                    Ok(_) => info!("[{}] Completed successfully", task_name),
+                    Err(e) => error!("[{}] Failed with error: {:?}", task_name, e)
+                }
+        })
+    }
 }
 
 
