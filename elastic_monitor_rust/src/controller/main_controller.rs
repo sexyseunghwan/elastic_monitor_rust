@@ -108,7 +108,7 @@ where
         //         }
         // })   
     }
-
+    
     #[doc = "Spawn report task as a separate tokio task"]
     fn spawn_report_task(
         service: Arc<R>,

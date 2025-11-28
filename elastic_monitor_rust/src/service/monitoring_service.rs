@@ -152,7 +152,9 @@ where
     N: NotificationService + Sync + Send,
 {
     
+    #[doc = ""]
     async fn monitoring_loop(&self) -> anyhow::Result<()> {
+        
         
 
         Ok(())
