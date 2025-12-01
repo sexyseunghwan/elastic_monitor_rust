@@ -128,16 +128,9 @@ where
                 info!("[{}] Disabled. Skipping.", task_name);
             });
         }
-
-        let report_config: ReportConfig = match report_type {
-            ReportType::Day => get_daily_report_config_info().clone(),
-            ReportType::Week => get_weekly_report_config_info().clone(),
-            ReportType::Month => get_monthly_report_config_info().clone(),
-            ReportType::Year => get_yearly_report_config_info().clone(),
-        };
-
+        
         tokio::spawn(async move {
-            match service.report_loop(report_config).await {
+            match service.report_loop(report_type).await {
                 Ok(_) => info!("[spawn_report_task->{}] Completed successfully", task_name),
                 Err(e) => error!(
                     "[spawn_report_task->{}] Failed with error [cluster name: {}]: {:?}",

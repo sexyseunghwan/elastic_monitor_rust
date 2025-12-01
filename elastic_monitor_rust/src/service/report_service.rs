@@ -4,7 +4,12 @@ use crate::traits::service::{
     metric_service_trait::*, notification_service_trait::*, report_service_trait::*,
 };
 
-use crate::enums::report_type::*;
+use crate::enums::{
+    report_type::*, report_range::*
+};
+
+use crate::repository::es_repository::*;
+
 
 use crate::model::configs::{config::*, report_config::*};
 
@@ -20,12 +25,35 @@ where
     N: NotificationService,
 {
     #[doc = ""]
-    async fn report_cluster_issues(&self) -> anyhow::Result<()> {
+    async fn report_cluster_issues(&self, report_range: ReportRange) -> anyhow::Result<()> {
         
+        
+
+        let start_at: DateTime<Utc> = report_range.from;
+        let end_at: DateTime<Utc> = report_range.to;
+        
+        let cluster_name = "test";
+        let index_name = format!("{}*", "test");
+
+        //모니터링 인덱스에 접근할 것이다.
         
         
         Ok(())
     }
+
+    #[doc = ""]
+    async fn get_cluster_err_datas(&self, index_name: &str) -> anyhow::Result<()> {
+
+        //let index_name = 
+        
+        let test = get_mon_es_config_info().err_log_index_pattern()
+
+        let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
+        
+
+        Ok(())
+    }
+
 }
 
 #[async_trait]
@@ -35,7 +63,24 @@ where
     N: NotificationService + Sync + Send,
 {
     #[doc = "Function that provides a report service"]
-    async fn report_loop(&self, report_config: ReportConfig) -> anyhow::Result<()> {
+    async fn report_loop(&self, report_type: ReportType) -> anyhow::Result<()> {
+    //async fn report_loop(&self, report_config: ReportConfig) -> anyhow::Result<()> {
+        
+        let report_config: ReportConfig = match report_type {
+            ReportType::Day => get_daily_report_config_info().clone(),
+            ReportType::Week => get_weekly_report_config_info().clone(),
+            ReportType::Month => get_monthly_report_config_info().clone(),
+            ReportType::Year => get_yearly_report_config_info().clone(),
+        };
+
+        let time_range: ReportRange = match report_type {
+            ReportType::Day => ReportType::Day.range(),
+            ReportType::Week => ReportType::Week.range(),
+            ReportType::Month => ReportType::Month.range(),
+            ReportType::Year => ReportType::Year.range(),
+        };
+
+
         let schedule: cron::Schedule = cron::Schedule::from_str(&report_config.cron_schedule)
             .map_err(|e| {
                 anyhow!(
@@ -49,7 +94,7 @@ where
             "Starting daily report scheduler with cron schedule: {}",
             report_config.cron_schedule
         );
-
+        
         loop {
             /* The reporting schedule is based on Korean time - GMT+9 */
             let now_local: DateTime<Local> = chrono::Local::now();

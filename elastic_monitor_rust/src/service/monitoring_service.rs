@@ -27,7 +27,7 @@ where
              and sends an alarm if problems are detected"]
     async fn cluster_nodes_check(&self) -> Result<(), anyhow::Error> {
         let fail_hosts: Vec<String> = self.metric_service.get_cluster_node_check().await?;
-
+        
         if !fail_hosts.is_empty() {
             let cluster_name: String = self.metric_service.get_cluster_name();
 
@@ -42,7 +42,7 @@ where
                 String::from("Elasticsearch Connection Failed"),
                 String::from("The connection of these hosts has been LOST."),
             );
-
+            
             self.notification_service.send_alarm_infos(&msg_fmt).await?;
         }
 
@@ -66,7 +66,7 @@ where
             self.metric_service
                 .put_cluster_health_unstable_infos(&cluster_name, &danger_indicies)
                 .await?;
-
+            
             let msg_fmt: MessageFormatterIndex = MessageFormatterIndex::new(
                 cluster_name,
                 all_host,
@@ -129,7 +129,7 @@ where
 
             self.notification_service.send_alarm_infos(&msg).await?;
         }
-
+        
         Ok(())
     }
 }
