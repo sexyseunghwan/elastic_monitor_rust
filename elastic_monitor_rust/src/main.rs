@@ -39,7 +39,7 @@ History     : 2024-10-02 Seunghwan Shin       # [v.1.0.0] first create
                                                 1) 리눅스 호환가능하도록 변경
                                                 2) 개발계에서 문제가 생길경우에는 단독 메일만 보내도록 처리
               2025-09-11 Seunghwan Shin       # [v.2.2.0] 모니터링 전용 ES 에 메트릭 수집하는 방식으로 코드 변경
-              2025-00-00 Seunghwan Shin       # [v.3.0.0]
+              2025-12-00 Seunghwan Shin       # [v.3.0.0]
 */
 mod common;
 use common::*;
@@ -56,7 +56,6 @@ use service::{
 };
 
 mod model;
-use model::configs::{config::*, use_case_config::*};
 
 mod repository;
 use repository::es_repository::*;
@@ -89,82 +88,46 @@ async fn main() {
         )
     });
 
-    /* 실행환경에 따라 분류 -> 필요없어보임 */
-    // let use_case_binding: &UseCaseConfig = get_usecase_config_info();
-    // let use_case: &str = use_case_binding.use_case().as_str();
-    
-    /* Handler Dependency Injection */
+    /*
+        Handler Dependency Injection
+        Since multiple clusters can be monitored simultaneously,
+        dependency injection is performed for each cluster.
+    */
     for cluster in es_infos_vec {
         let metric_service: Arc<MetricServiceImpl<EsRepositoryImpl>> =
             Arc::new(MetricServiceImpl::new(cluster));
         let notification_service: Arc<NotificationServiceImpl> =
             Arc::new(NotificationServiceImpl::new());
 
-        let monitoring_service: MonitoringServiceImpl<
-            MetricServiceImpl<EsRepositoryImpl>,
-            NotificationServiceImpl,
-        > = MonitoringServiceImpl::new(
+        let monitoring_service: Arc<
+            MonitoringServiceImpl<MetricServiceImpl<EsRepositoryImpl>, NotificationServiceImpl>,
+        > = Arc::new(MonitoringServiceImpl::new(
             Arc::clone(&metric_service),
             Arc::clone(&notification_service),
-        );
+        ));
 
-        let report_service: ReportServiceImpl<
-            MetricServiceImpl<EsRepositoryImpl>,
-            NotificationServiceImpl,
-        > = ReportServiceImpl::new(
+        let report_service: Arc<
+            ReportServiceImpl<MetricServiceImpl<EsRepositoryImpl>, NotificationServiceImpl>,
+        > = Arc::new(ReportServiceImpl::new(
             Arc::clone(&metric_service),
             Arc::clone(&notification_service),
-        );
+        ));
+
+        let controller: MainController<
+            MonitoringServiceImpl<MetricServiceImpl<EsRepositoryImpl>, NotificationServiceImpl>,
+            ReportServiceImpl<MetricServiceImpl<EsRepositoryImpl>, NotificationServiceImpl>,
+        > = MainController::new(monitoring_service, report_service);
+
+        tokio::spawn(async move {
+            if let Err(e) = controller.main_task().await {
+                error!("[main] controller error: {:?}", e);
+            }
+        });
+    }
+    
+    if let Err(e) = tokio::signal::ctrl_c().await {
+        error!("[main] Failed to listen for Ctrl+C signal: {:?}", e);
     }
 
-    /*
-        Handler 의존주입
-        - EsRepositoryPub 를 의존주입하는 이유는 각 Cluster 서버마다 모니터링 대상 Elasticsearch 서버가 다를 수 있기 때문이다.
-    */
-    // let mut handlers: Vec<
-    //     MainHandler<MetricServiceImpl<EsRepositoryImpl>, NotificationServiceImpl>,
-    // > = Vec::new();
-
-    // for cluster in es_infos_vec {
-    //     let metirc_service: MetricServiceImpl<EsRepositoryImpl> = MetricServiceImpl::new(cluster);
-    //     let notification_service: NotificationServiceImpl = NotificationServiceImpl::new();
-    //     let main_handler: MainHandler<
-    //         MetricServiceImpl<EsRepositoryImpl>,
-    //         NotificationServiceImpl,
-    //     > = MainHandler::new(metirc_service, notification_service);
-    //     handlers.push(main_handler);
-    // }
-
-    /*
-        Loop 처리를 통해서 계속 Metric 정보 수집.
-    */
-    // loop {
-    //     /* Async 작업 */
-    //     let futures = handlers.iter().map(|handler| {
-    //         async move {
-    //             handler.main_task_set().await /* 실제 Task */
-    //         }
-    //     });
-
-    //     let results: Vec<std::result::Result<(), anyhow::Error>> = join_all(futures).await;
-
-    //     for result in results {
-    //         match result {
-    //             Ok(_) => {
-    //                 info!("Program processed successfully");
-    //             }
-    //             Err(e) => {
-    //                 error!("[Error][main()] Error processing template: {:?}", e);
-    //             }
-    //         }
-    //     }
-
-    //     if use_case == "dev" {
-    //         info!("Exit Program");
-    //         break; /* Test code */
-    //     }
-
-    //     info!("Pending Program...");
-    //     std_sleep(Duration::from_secs(10)); /* 10초 마다 탐색 -> 무한루프가 돌고 있으므로. */
-    // }
+    info!("Shutting down...");
 }

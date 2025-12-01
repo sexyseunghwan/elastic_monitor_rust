@@ -4,14 +4,16 @@ pub use std::{
     future::Future,
     io::Write,
     ops::Deref,
+    result::Result,
     str::{FromStr, Lines},
     sync::Arc,
     thread::sleep as std_sleep,
+    path::Path
 };
 
 pub use tokio::{
     sync::{OwnedSemaphorePermit, Semaphore},
-    time::{sleep, Duration, Instant, sleep_until}
+    time::{sleep, sleep_until, Duration, Instant},
 };
 
 pub use log::{error, info, warn};
@@ -43,7 +45,7 @@ pub use tiberius::Row;
 
 pub use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
 
-pub use anyhow::{anyhow, Result};
+pub use anyhow::{anyhow, Context};
 
 pub use derive_new::new;
 pub use getset::Getters;
@@ -54,7 +56,7 @@ pub use async_trait::async_trait;
 
 pub use once_cell::sync::Lazy as once_lazy;
 
-pub use chrono::{DateTime, NaiveDateTime, TimeZone, Utc, Local};
+pub use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc};
 
 pub use lettre::{
     message::{MultiPart, SinglePart},
@@ -67,3 +69,10 @@ pub use derive_builder::Builder;
 pub use deadpool_tiberius::{Manager, Pool};
 
 pub use urlencoding;
+
+pub use plotters::{
+    backend::BitMapBackend,
+    drawing::IntoDrawingArea,
+    prelude::{RGBColor, ChartBuilder, ShapeStyle, LineSeries},
+    style::IntoFont
+};

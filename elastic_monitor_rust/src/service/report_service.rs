@@ -1,17 +1,12 @@
 use crate::common::*;
 
 use crate::traits::service::{
-    metric_service_trait::*, 
-    notification_service_trait::*,
-    report_service_trait::*
+    metric_service_trait::*, notification_service_trait::*, report_service_trait::*,
 };
 
 use crate::enums::report_type::*;
 
-use crate::model::configs::{
-    config::*,
-    report_config::*
-};
+use crate::model::configs::{config::*, report_config::*};
 
 #[derive(Debug, new)]
 pub struct ReportServiceImpl<M: MetricService, N: NotificationService> {
@@ -19,22 +14,19 @@ pub struct ReportServiceImpl<M: MetricService, N: NotificationService> {
     notification_service: Arc<N>,
 }
 
-impl<M, N> ReportServiceImpl <M, N>
+impl<M, N> ReportServiceImpl<M, N>
 where
-    M: MetricService,       
+    M: MetricService,
     N: NotificationService,
 {
     #[doc = ""]
     async fn report_cluster_issues(&self) -> anyhow::Result<()> {
-
         
-
+        
+        
         Ok(())
     }
-    
-
 }
-
 
 #[async_trait]
 impl<M, N> ReportService for ReportServiceImpl<M, N>
@@ -42,13 +34,8 @@ where
     M: MetricService + Sync + Send,
     N: NotificationService + Sync + Send,
 {
-
     #[doc = "Function that provides a report service"]
-    async fn report_loop(
-        &self,
-        report_config: ReportConfig
-    ) -> anyhow::Result<()> {
-        
+    async fn report_loop(&self, report_config: ReportConfig) -> anyhow::Result<()> {
         let schedule: cron::Schedule = cron::Schedule::from_str(&report_config.cron_schedule)
             .map_err(|e| {
                 anyhow!(
@@ -57,14 +44,13 @@ where
                     e
                 )
             })?;
-            
+
         info!(
             "Starting daily report scheduler with cron schedule: {}",
             report_config.cron_schedule
         );
-        
-        loop {
 
+        loop {
             /* The reporting schedule is based on Korean time - GMT+9 */
             let now_local: DateTime<Local> = chrono::Local::now();
 
@@ -83,7 +69,7 @@ where
                     continue;
                 }
             };
-            
+
             info!(
                 "Next report scheduled at: {}. Sleeping for {:?}",
                 next_run.format("%Y-%m-%dT%H:%M:%S"),
@@ -108,8 +94,6 @@ where
             // .unwrap_or_else(|e| {
             //     error!("{:?}", e);
             // });
-
         }
     }
-
 }

@@ -119,7 +119,7 @@ impl NotificationServiceImpl {
                 }
             }
         }
-        
+
         Ok(())
     }
 
@@ -130,7 +130,7 @@ impl NotificationServiceImpl {
         html_content: &str,
         receiver_email_list: &ReceiverEmailList,
     ) -> anyhow::Result<()> {
-        let smtp_config: &SmtpConfig= get_smtp_config_info();
+        let smtp_config: &SmtpConfig = get_smtp_config_info();
 
         let tasks = receiver_email_list.receivers.iter().map(|receiver| {
             let email_id: &String = receiver.email_id();

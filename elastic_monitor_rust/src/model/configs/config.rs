@@ -3,11 +3,7 @@ use crate::common::*;
 use crate::utils_modules::io_utils::*;
 
 use crate::model::configs::{
-    mon_elastic_config::*, 
-    smtp_config::*, 
-    telegram_config::*, 
-    use_case_config::*,
-    report_config::*
+    mon_elastic_config::*, report_config::*, smtp_config::*, telegram_config::*, use_case_config::*,
 };
 
 use crate::env_configuration::env_config::*;
@@ -40,7 +36,7 @@ pub fn get_usecase_config_info() -> &'static UseCaseConfig {
 
 #[doc = "Information of Elasticsearch configuration"]
 pub fn get_mon_es_config_info() -> &'static MonElasticConfig {
-     &SERVER_CONFIG.monitor_es
+    &SERVER_CONFIG.monitor_es
 }
 
 #[doc = "Daily report information"]
@@ -78,22 +74,20 @@ pub struct Config {
 
 impl Config {
     pub fn new() -> Self {
-        
-        let system_config: Config =
-            match read_toml_from_file::<Config>(&SYSTEM_CONFIG_PATH) {
-                Ok(system_config) => system_config,
-                Err(e) => {
-                    error!(
-                        "[Config->new] Failed to retrieve information 'system_config'. : {:?}",
-                        e
-                    );
-                    panic!(
-                        "[Config->new] Failed to retrieve information 'system_config'. : {:?}",
-                        e
-                    );
-                }
-            };
-        
+        let system_config: Config = match read_toml_from_file::<Config>(&SYSTEM_CONFIG_PATH) {
+            Ok(system_config) => system_config,
+            Err(e) => {
+                error!(
+                    "[Config->new] Failed to retrieve information 'system_config'. : {:?}",
+                    e
+                );
+                panic!(
+                    "[Config->new] Failed to retrieve information 'system_config'. : {:?}",
+                    e
+                );
+            }
+        };
+
         Config {
             smtp: system_config.smtp,
             telegram: system_config.telegram,
@@ -102,7 +96,7 @@ impl Config {
             daily_report: system_config.daily_report,
             weekly_report: system_config.weekly_report,
             monthly_report: system_config.monthly_report,
-            yearly_report: system_config.yearly_report
+            yearly_report: system_config.yearly_report,
         }
     }
 }

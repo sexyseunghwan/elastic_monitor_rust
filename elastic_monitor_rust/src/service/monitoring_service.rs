@@ -1,22 +1,15 @@
 use crate::common::*;
 
 use crate::traits::service::{
-    metric_service_trait::*, 
-    notification_service_trait::*,
-    monitoring_service_trait::*
+    metric_service_trait::*, monitoring_service_trait::*, notification_service_trait::*,
 };
 
 use crate::model::{
+    configs::{config::*, report_config::*},
     message_formatter_dto::{
-        message_formatter_index::*, 
-        message_formatter_node::*, 
-        message_formatter_urgent::*,
+        message_formatter_index::*, message_formatter_node::*, message_formatter_urgent::*,
     },
     search_indicies::*,
-    configs::{
-        config::*,
-        report_config::*
-    }
 };
 
 #[derive(Debug, new)]
@@ -27,10 +20,9 @@ pub struct MonitoringServiceImpl<M: MetricService, N: NotificationService> {
 
 impl<M, N> MonitoringServiceImpl<M, N>
 where
-    M: MetricService,       
+    M: MetricService,
     N: NotificationService,
 {
-    
     #[doc = "Function that checks whether each node in the cluster has connectivity issues 
              and sends an alarm if problems are detected"]
     async fn cluster_nodes_check(&self) -> Result<(), anyhow::Error> {
@@ -56,11 +48,11 @@ where
 
         Ok(())
     }
-    
+
     #[doc = "Function that monityors the cluster's status -> GREEN, YELLOW, RED"]
     async fn cluster_health_check(&self) -> Result<(), anyhow::Error> {
         let health_status: String = self.metric_service.get_cluster_health_check().await?;
-        
+
         /* If problems occur with the Elasticsearch cluster */
         if health_status == "RED" {
             let cluster_name: String = self.metric_service.get_cluster_name();
@@ -140,10 +132,7 @@ where
 
         Ok(())
     }
-
 }
-
-
 
 #[async_trait]
 impl<M, N> MonitoringService for MonitoringServiceImpl<M, N>
@@ -151,14 +140,46 @@ where
     M: MetricService + Sync + Send,
     N: NotificationService + Sync + Send,
 {
-    
     #[doc = ""]
     async fn monitoring_loop(&self) -> anyhow::Result<()> {
-        
-        
+        loop {
+            match self.cluster_nodes_check().await {
+                Ok(_) => (),
+                Err(e) => {
+                    error!("[MonitoringServiceImpl->monitoring_loop] cluster_nodes_check() error: {:?}", e);
+                    continue;
+                }
+            };
 
-        Ok(())
+            match self.cluster_health_check().await {
+                Ok(_) => (),
+                Err(e) => {
+                    error!("[MonitoringServiceImpl->monitoring_loop] cluster_health_check() error: {:?}", e);
+                    continue;
+                }
+            }
+
+            match self.input_es_metric_infos().await {
+                Ok(_) => (),
+                Err(e) => {
+                    error!("[MonitoringServiceImpl->monitoring_loop] input_es_metric_infos() error: {:?}", e);
+                    continue;
+                }
+            }
+
+            match self.send_alarm_urgent_infos().await {
+                Ok(_) => (),
+                Err(e) => {
+                    error!("[MonitoringServiceImpl->monitoring_loop] send_alarm_urgent_infos() error: {:?}", e);
+                    continue;
+                }
+            }
+
+            std_sleep(Duration::from_secs(10));
+        }
     }
-    
 
+    fn get_cluster_name(&self) -> String {
+        self.metric_service.get_cluster_name()
+    }
 }
