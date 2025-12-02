@@ -52,7 +52,8 @@ use utils_modules::logger_utils::*;
 
 mod service;
 use service::{
-    metrics_service::*, monitoring_service::*, notification_service::*, report_service::*,
+    chart_service::*, metrics_service::*, monitoring_service::*, notification_service::*,
+    report_service::*,
 };
 
 mod model;
@@ -89,6 +90,14 @@ async fn main() {
     });
 
     /*
+        Shared services (stateless or immutable config)
+        These services can be safely shared across all clusters
+    */
+    let chart_service: Arc<ChartServiceImpl> = Arc::new(ChartServiceImpl::new());
+    let notification_service: Arc<NotificationServiceImpl> =
+        Arc::new(NotificationServiceImpl::new());
+
+    /*
         Handler Dependency Injection
         Since multiple clusters can be monitored simultaneously,
         dependency injection is performed for each cluster.
@@ -96,8 +105,6 @@ async fn main() {
     for cluster in es_infos_vec {
         let metric_service: Arc<MetricServiceImpl<EsRepositoryImpl>> =
             Arc::new(MetricServiceImpl::new(cluster));
-        let notification_service: Arc<NotificationServiceImpl> =
-            Arc::new(NotificationServiceImpl::new());
 
         let monitoring_service: Arc<
             MonitoringServiceImpl<MetricServiceImpl<EsRepositoryImpl>, NotificationServiceImpl>,
@@ -107,15 +114,24 @@ async fn main() {
         ));
 
         let report_service: Arc<
-            ReportServiceImpl<MetricServiceImpl<EsRepositoryImpl>, NotificationServiceImpl>,
+            ReportServiceImpl<
+                MetricServiceImpl<EsRepositoryImpl>,
+                NotificationServiceImpl,
+                ChartServiceImpl,
+            >,
         > = Arc::new(ReportServiceImpl::new(
             Arc::clone(&metric_service),
             Arc::clone(&notification_service),
+            Arc::clone(&chart_service),
         ));
 
         let controller: MainController<
             MonitoringServiceImpl<MetricServiceImpl<EsRepositoryImpl>, NotificationServiceImpl>,
-            ReportServiceImpl<MetricServiceImpl<EsRepositoryImpl>, NotificationServiceImpl>,
+            ReportServiceImpl<
+                MetricServiceImpl<EsRepositoryImpl>,
+                NotificationServiceImpl,
+                ChartServiceImpl,
+            >,
         > = MainController::new(monitoring_service, report_service);
 
         tokio::spawn(async move {
@@ -124,7 +140,7 @@ async fn main() {
             }
         });
     }
-    
+
     if let Err(e) = tokio::signal::ctrl_c().await {
         error!("[main] Failed to listen for Ctrl+C signal: {:?}", e);
     }

@@ -25,7 +25,6 @@ impl ChartServiceImpl {
 
 #[async_trait]
 impl ChartService for ChartServiceImpl {
-    
     #[doc = "
         Generate a line chart from time-series data and save it as an image file
         # Arguments
@@ -148,5 +147,4 @@ impl ChartService for ChartServiceImpl {
 
         Ok(())
     }
-
 }

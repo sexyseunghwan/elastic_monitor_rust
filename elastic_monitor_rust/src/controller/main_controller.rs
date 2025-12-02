@@ -128,7 +128,7 @@ where
                 info!("[{}] Disabled. Skipping.", task_name);
             });
         }
-        
+
         tokio::spawn(async move {
             match service.report_loop(report_type).await {
                 Ok(_) => info!("[spawn_report_task->{}] Completed successfully", task_name),

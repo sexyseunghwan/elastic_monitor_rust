@@ -14,14 +14,22 @@ impl ReportType {
     pub fn range(&self) -> ReportRange {
         let now: DateTime<Utc> = Utc::now();
         match self {
-            ReportType::Day =>
-                ReportRange { from: now - ChronoDuration::days(1), to: now },
-            ReportType::Week =>
-                ReportRange { from: now - ChronoDuration::days(7), to: now },
-            ReportType::Month =>
-                ReportRange { from: now - Months::new(1), to: now },
-            ReportType::Year =>
-                ReportRange { from: now - Months::new(12), to: now },
+            ReportType::Day => ReportRange {
+                from: now - ChronoDuration::days(1),
+                to: now,
+            },
+            ReportType::Week => ReportRange {
+                from: now - ChronoDuration::days(7),
+                to: now,
+            },
+            ReportType::Month => ReportRange {
+                from: now - Months::new(1),
+                to: now,
+            },
+            ReportType::Year => ReportRange {
+                from: now - Months::new(12),
+                to: now,
+            },
         }
     }
 }

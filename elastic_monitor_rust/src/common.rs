@@ -4,11 +4,11 @@ pub use std::{
     future::Future,
     io::Write,
     ops::Deref,
+    path::Path,
     result::Result,
     str::{FromStr, Lines},
     sync::Arc,
     thread::sleep as std_sleep,
-    path::Path
 };
 
 pub use tokio::{
@@ -56,7 +56,9 @@ pub use async_trait::async_trait;
 
 pub use once_cell::sync::Lazy as once_lazy;
 
-pub use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc, Months, Duration as ChronoDuration};
+pub use chrono::{
+    DateTime, Duration as ChronoDuration, FixedOffset, Local, Months, NaiveDateTime, TimeZone, Utc,
+};
 
 pub use lettre::{
     message::{MultiPart, SinglePart},
@@ -73,6 +75,6 @@ pub use urlencoding;
 pub use plotters::{
     backend::BitMapBackend,
     drawing::IntoDrawingArea,
-    prelude::{RGBColor, ChartBuilder, ShapeStyle, LineSeries},
-    style::IntoFont
+    prelude::{ChartBuilder, LineSeries, RGBColor, ShapeStyle},
+    style::IntoFont,
 };

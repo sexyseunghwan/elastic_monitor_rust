@@ -15,6 +15,11 @@ pub trait EsRepository {
         es_query: &Value,
         index_name: &str,
     ) -> Result<Vec<T>, anyhow::Error>;
+    async fn get_agg_query<T: for<'de> Deserialize<'de> + Send + 'static>(
+        &self,
+        es_query: &Value,
+        index_name: &str,
+    ) -> Result<T, anyhow::Error>;
     fn get_cluster_name(&self) -> String;
     fn get_cluster_all_host_infos(&self) -> Vec<String>;
     fn get_cluster_index_pattern(&self) -> Option<String>;

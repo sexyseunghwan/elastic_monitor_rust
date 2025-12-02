@@ -554,6 +554,43 @@ impl EsRepository for EsRepositoryImpl {
         }
     }
 
+    #[doc = "특정 인덱스에서 aggregation 쿼리로 데이터를 가져와주는 함수"]
+    /// # Arguments
+    /// * `es_query`      - Elasticsearch aggregation 쿼리
+    /// * `index_name`    - 인덱스 이름
+    ///
+    /// # Returns
+    /// * Result<T, anyhow::Error> - aggregation 결과를 담은 구조체
+    async fn get_agg_query<T: for<'de> Deserialize<'de> + Send + 'static>(
+        &self,
+        es_query: &Value,
+        index_name: &str,
+    ) -> anyhow::Result<T> {
+        let response: Response = self
+            .execute_on_any_node(|es_client| async move {
+                let response: Response = es_client
+                    .es_conn
+                    .search(SearchParts::Index(&[index_name]))
+                    .body(es_query)
+                    .send()
+                    .await?;
+
+                Ok(response)
+            })
+            .await?;
+
+        if response.status_code().is_success() {
+            let parsed: AggregationResponse<T> = response.json().await?;
+            Ok(parsed.aggregations)
+        } else {
+            let error_body: String = response.text().await?;
+            Err(anyhow!(
+                "[EsRepositoryImpl->get_agg_query] response status is failed: {:?}",
+                error_body
+            ))
+        }
+    }
+
     #[doc = "Elasticsearch 클러스터의 이름을 가져와주는 함수."]
     fn get_cluster_name(&self) -> String {
         self.cluster_name().to_string()

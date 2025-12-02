@@ -14,3 +14,20 @@ pub struct SearchResponse<T> {
 pub struct HitsWrapper<T> {
     pub hits: Vec<SearchHit<T>>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct AggregationResponse<T> {
+    pub aggregations: T,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DateHistogramAggregation {
+    pub buckets: Vec<DateHistogramBucket>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DateHistogramBucket {
+    pub key_as_string: Option<String>,
+    pub key: i64,
+    pub doc_count: i64,
+}
