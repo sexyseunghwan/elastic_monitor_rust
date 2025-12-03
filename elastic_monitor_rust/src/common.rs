@@ -4,7 +4,7 @@ pub use std::{
     future::Future,
     io::Write,
     ops::Deref,
-    path::Path,
+    path::{Path, PathBuf},
     result::Result,
     str::{FromStr, Lines},
     sync::Arc,

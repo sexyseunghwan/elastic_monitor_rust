@@ -19,7 +19,7 @@ use crate::repository::es_repository::*;
 use crate::model::{
     configs::{config::*, report_config::*},
     elastic_dto::elastic_source_parser::*,
-    err_log_dto::{err_agg_history_bucket::*, err_log_info::*},
+    reports::{err_agg_history_bucket::*, err_log_info::*},
 };
 
 #[derive(Debug, new)]
@@ -41,12 +41,14 @@ where
         report_range: ReportRange,
         report_type: ReportType,
     ) -> anyhow::Result<()> {
-        
-        let calendar_interval = match report_type {
-            ReportType::Dat => ""
-        }
-        
-        
+        // "minute" | "hour" | "day" | "week" | "month"
+        let calendar_interval: &str = match report_type {
+            ReportType::Day => "minute",
+            ReportType::Week => "hour",
+            ReportType::Month => "day",
+            ReportType::Year => "week",
+        };
+
         let start_at: DateTime<Utc> = report_range.from;
         let end_at: DateTime<Utc> = report_range.to;
 
@@ -55,8 +57,9 @@ where
             self.get_cluster_err_datas_from_es(start_at, end_at).await?;
 
         let total_alarm_cnt: i32 = Self::calculate_error_term(&err_datas)?;
-        //let graph data
-        let to_wirte_graph_datas = self.get_agg_err_datas_from_es(start_at, end_at, calendar_interval)
+        let to_wirte_graph_datas: Vec<ErrorAggHistoryBucket> = self
+            .get_agg_err_datas_from_es(start_at, end_at, calendar_interval)
+            .await?;
 
         Ok(())
     }
@@ -123,7 +126,6 @@ where
     /// * `Ok(i32)` - Number of error periods (gaps > 60 seconds between consecutive errors)
     /// * `Err` - If timestamp parsing fails
     fn calculate_error_term(err_log_infos: &[ErrorLogInfo]) -> anyhow::Result<i32> {
-        
         if err_log_infos.is_empty() {
             return Ok(0);
         }
@@ -210,6 +212,22 @@ where
             convert_from_histogram_bucket(&cluster_name, &respnse_body)?;
 
         Ok(agg_convert_result)
+    }
+    
+    
+    #[doc = ""]
+    async fn generate_err_history_graph(
+        &self,
+        err_agg_hist_list: &[ErrorAggHistoryBucket],
+        start_at: DateTime<Utc>,
+        end_at: DateTime<Utc>,
+        
+    ) -> anyhow::Result<()> {
+
+        
+
+
+        Ok(())
     }
 }
 

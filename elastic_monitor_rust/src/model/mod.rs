@@ -1,7 +1,7 @@
 pub mod cluster_dto;
 pub mod configs;
 pub mod elastic_dto;
-pub mod err_log_dto;
+pub mod reports;
 pub mod index_config;
 pub mod index_info;
 pub mod index_metric_info;

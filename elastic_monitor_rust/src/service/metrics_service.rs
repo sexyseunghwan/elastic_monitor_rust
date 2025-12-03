@@ -5,7 +5,7 @@ use crate::utils_modules::io_utils::*;
 use crate::utils_modules::json_utils::*;
 use crate::utils_modules::time_utils::*;
 
-use crate::model::err_log_dto::err_log_info::*;
+use crate::model::reports::err_log_info::*;
 use crate::model::index_config::*;
 use crate::model::index_info::*;
 use crate::model::index_metric_info::*;
