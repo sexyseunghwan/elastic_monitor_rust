@@ -175,7 +175,7 @@ where
                 }
             }
 
-            std_sleep(Duration::from_secs(10));
+            std_sleep(Duration::from_secs(100));
         }
     }
 
