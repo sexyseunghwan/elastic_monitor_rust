@@ -5,12 +5,12 @@ use crate::utils_modules::io_utils::*;
 use crate::utils_modules::json_utils::*;
 use crate::utils_modules::time_utils::*;
 
-use crate::model::reports::err_log_info::*;
 use crate::model::index_config::*;
 use crate::model::index_info::*;
 use crate::model::index_metric_info::*;
 use crate::model::message_formatter_dto::message_formatter_urgent::*;
 use crate::model::monitoring::{breaker_info::*, metric_info::*, segment_info::*};
+use crate::model::reports::err_log_info::*;
 use crate::model::search_indicies::*;
 use crate::model::thread_pool_stat::*;
 use crate::model::urgent_dto::urgent_config::*;
@@ -736,18 +736,18 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
 
         for elem in index_vec {
             /* You should also consider cases where a specific index is NOT currently present in Elasticsearch DB */
-            let index_matric_info: IndexMetricInfo = match self
+            let index_metric_info: IndexMetricInfo = match self
                 .get_index_stats_handle(elem.index_name(), &now_str)
                 .await
             {
-                Ok(index_matric_info) => index_matric_info,
+                Ok(index_metric_info) => index_metric_info,
                 Err(e) => {
                     error!("[MetricServiceImpl->post_cluster_index_infos] {:?}", e);
                     continue;
                 }
             };
 
-            let document: Value = serde_json::to_value(&index_matric_info)?;
+            let document: Value = serde_json::to_value(&index_metric_info)?;
             mon_es.post_doc(&index_name, document).await?;
         }
 

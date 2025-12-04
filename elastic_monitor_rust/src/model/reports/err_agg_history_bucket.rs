@@ -2,11 +2,13 @@ use crate::common::*;
 
 use crate::model::elastic_dto::elastic_source_parser::*;
 
-#[derive(Debug, Serialize, Deserialize, Getters, new)]
+use crate::utils_modules::time_utils::*;
+
+#[derive(Debug, Getters, new)]
 #[getset(get = "pub")]
 pub struct ErrorAggHistoryBucket {
     pub cluster_name: String,
-    pub date_at: String,
+    pub date_at: DateTime<Local>,
     pub doc_count: i64,
 }
 
@@ -24,12 +26,22 @@ pub fn convert_from_histogram_bucket(
     let histogram_buckets: Vec<ErrorAggHistoryBucket> = date_histograms
         .iter()
         .filter_map(|bucket| {
-            bucket.key_as_string.as_ref().map(|date_at| {
-                ErrorAggHistoryBucket::new(
-                    cluster_name.to_string(),
-                    date_at.clone(),
-                    bucket.doc_count,
-                )
+            bucket.key_as_string.as_ref().and_then(|date_at_str| {
+                /* Convert UTC String to Local DateTime */
+                match convert_utc_to_local(date_at_str) {
+                    Ok(date_at) => Some(ErrorAggHistoryBucket::new(
+                        cluster_name.to_string(),
+                        date_at,
+                        bucket.doc_count,
+                    )),
+                    Err(e) => {
+                        warn!(
+                            "[convert_from_histogram_bucket] Failed to convert timestamp '{}': {:?}",
+                            date_at_str, e
+                        );
+                        None
+                    }
+                }
             })
         })
         .collect();

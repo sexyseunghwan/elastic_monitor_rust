@@ -219,7 +219,6 @@ impl NotificationServiceImpl {
 
 #[async_trait]
 impl NotificationService for NotificationServiceImpl {
-    
     #[doc = ""]
     async fn send_alarm_infos<T: MessageFormatter + Sync + Send>(
         &self,
@@ -258,7 +257,4 @@ impl NotificationService for NotificationServiceImpl {
     //     html_content: &str,
 
     // )
-
-    
-
 }

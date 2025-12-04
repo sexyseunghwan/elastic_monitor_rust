@@ -82,6 +82,19 @@ where
     convert_date_to_str(time, tz, "%Y%m%d")
 }
 
+pub fn convert_date_to_str_ymdhms<Tz, TzOut>(
+    time: DateTime<Tz>,
+    tz: TzOut, // Timezone (Utc, Local, FixedOffset ...)
+) -> String
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+    TzOut: TimeZone,
+    TzOut::Offset: Display,
+{
+    convert_date_to_str(time, tz, "%Y%m%d%H%M%S")
+}
+
 pub fn convert_str_to_datetime<Tz>(time: &str, tz: Tz) -> anyhow::Result<DateTime<Tz>>
 where
     Tz: TimeZone,
@@ -93,4 +106,17 @@ where
         .with_timezone(&tz);
 
     Ok(dt_datetime)
+}
+
+#[doc = "Convert UTC DateTime to Local DateTime"]
+/// # Arguments
+/// * `date_at_str` - UTC DateTime to convert
+///
+/// # Returns
+/// * `Ok(DateTime<Local>)` - Converted Local DateTime
+pub fn convert_utc_to_local(date_at_str: &str) -> anyhow::Result<DateTime<Local>> {
+    let utc_time: DateTime<Utc> =
+        convert_str_to_datetime(date_at_str, Utc).context("[convert_utc_to_local] error")?;
+    let local_time: DateTime<Local> = utc_time.with_timezone(&Local);
+    Ok(local_time)
 }

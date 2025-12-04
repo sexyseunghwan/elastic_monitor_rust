@@ -73,7 +73,8 @@ impl ElasticConnGuard {
 
         /* 임의로 하나의 클라이언트를 가져옴 (랜덤 선택 가능) */
         let client: Arc<EsRepositoryImpl> = MON_ELASTIC_CONN_SEMAPHORE_POOL
-            .choose(&mut rand::thread_rng())
+            .as_slice()
+            .choose(&mut rand::rng())
             .cloned()
             .expect("[Error][EalsticConnGuard -> new] No clients available");
 
@@ -235,12 +236,9 @@ impl EsRepositoryImpl {
     {
         let mut last_error: Option<anyhow::Error> = None;
 
-        /* StdRng를 사용하여 Send 트레잇 문제 해결 - 랜덤 시드로 생성 */
-        let mut rng: StdRng = StdRng::from_entropy();
-
         /* 클라이언트 목록을 셔플 */
         let mut shuffled_clients: Vec<Arc<EsClient>> = self.es_clients.clone();
-        shuffled_clients.shuffle(&mut rng); /* StdRng를 사용하여 셔플 */
+        shuffled_clients.shuffle(&mut rand::rng());
 
         /* 셔플된 클라이언트들에 대해 순차적으로 operation 수행 */
         for es_client in shuffled_clients {

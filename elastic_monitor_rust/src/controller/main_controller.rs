@@ -30,14 +30,15 @@ where
 {
     #[doc = "Function that handles both the monitoring system and the reporting system."]
     pub async fn main_task(&self) -> anyhow::Result<()> {
-        /* Cluster name - monitored */
+        /* Monitoring tasks and reporting tasks are executed in parallel. */
+        /* Cluster name to be monitored */
         let cluster_name: String = self.monitoring_service.get_cluster_name();
 
-        /* Monitoring task */
+        /* 1. Monitoring task */
         let monitoring_handle: tokio::task::JoinHandle<()> =
             Self::spawn_monitoring_task(Arc::clone(&self.monitoring_service), &cluster_name);
 
-        /* Report Tasks list */
+        /* 2. Report Tasks list */
         let daily_enabled: bool = get_daily_report_config_info().enabled;
         let weekly_enabled: bool = get_weekly_report_config_info().enabled;
         let monthly_enabled: bool = get_monthly_report_config_info().enabled;

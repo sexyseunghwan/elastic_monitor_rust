@@ -43,7 +43,7 @@ pub use elasticsearch::{
 
 pub use tiberius::Row;
 
-pub use rand::{rngs::StdRng, seq::SliceRandom, SeedableRng};
+pub use rand::{prelude::IndexedRandom, prelude::ThreadRng, seq::SliceRandom, Rng};
 
 pub use anyhow::{anyhow, Context};
 

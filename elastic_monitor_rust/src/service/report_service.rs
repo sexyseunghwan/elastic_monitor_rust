@@ -1,5 +1,3 @@
-use toml::value::Datetime;
-
 use crate::common::*;
 
 use crate::utils_modules::time_utils::*;
@@ -36,11 +34,15 @@ where
     C: ChartService,
 {
     #[doc = ""]
-    async fn report_cluster_issues(
-        &self,
-        report_range: ReportRange,
-        report_type: ReportType,
-    ) -> anyhow::Result<()> {
+    async fn report_cluster_issues(&self, report_type: &ReportType) -> anyhow::Result<()> {
+        
+        let time_range: ReportRange = match report_type {
+            ReportType::Day => ReportType::Day.range(),
+            ReportType::Week => ReportType::Week.range(),
+            ReportType::Month => ReportType::Month.range(),
+            ReportType::Year => ReportType::Year.range(),
+        };
+        
         // "minute" | "hour" | "day" | "week" | "month"
         let calendar_interval: &str = match report_type {
             ReportType::Day => "minute",
@@ -49,17 +51,24 @@ where
             ReportType::Year => "week",
         };
 
-        let start_at: DateTime<Utc> = report_range.from;
-        let end_at: DateTime<Utc> = report_range.to;
+        let start_at: DateTime<Utc> = time_range.from;
+        let end_at: DateTime<Utc> = time_range.to;
 
         // get err data from elasticsearch
         let err_datas: Vec<ErrorLogInfo> =
             self.get_cluster_err_datas_from_es(start_at, end_at).await?;
 
         let total_alarm_cnt: i32 = Self::calculate_error_term(&err_datas)?;
+
         let to_wirte_graph_datas: Vec<ErrorAggHistoryBucket> = self
             .get_agg_err_datas_from_es(start_at, end_at, calendar_interval)
             .await?;
+
+        // 이제 to_wirte_graph_datas 이걸 기준으로 그래프를 만들어주자.
+        let img_path: PathBuf = self
+            .generate_err_history_graph(report_type, &to_wirte_graph_datas, start_at, end_at)
+            .await
+            .context("[ReportServiceImpl->report_cluster_issues]")?;
 
         Ok(())
     }
@@ -151,7 +160,15 @@ where
         Ok(err_alarm_cnt)
     }
 
-    #[doc = ""]
+    #[doc = "Retrieve aggregated error log data from Elasticsearch using date histogram aggregation"]
+    /// # Arguments
+    /// * `start_at` - Start time of the query range (UTC)
+    /// * `end_at` - End time of the query range (UTC)
+    /// * `calendar_interval` - Aggregation interval ("minute", "hour", "day", "week", "month")
+    ///
+    /// # Returns
+    /// * `Ok(Vec<ErrorAggHistoryBucket>)` - List of aggregated error buckets with timestamps converted to Local time
+    /// * `Err` - If query fails or data conversion fails
     async fn get_agg_err_datas_from_es(
         &self,
         start_at: DateTime<Utc>,
@@ -190,44 +207,103 @@ where
                             }
                         }
                     ]
-                },
-                "aggs": {
-                    "logs_per_time": {
-                        "date_histogram": {
-                            "field": "timestamp",
-                            "calendar_interval": calendar_interval
-                        }
+                }
+            },
+            "aggs": {
+                "logs_per_time": {
+                    "date_histogram": {
+                        "field": "timestamp",
+                        "calendar_interval": calendar_interval
                     }
                 }
             },
             "size": 0
         });
 
-        let respnse_body: Vec<DateHistogramBucket> = mon_es
-            .get_search_query::<DateHistogramBucket>(&search_query, &err_index_name)
+        let agg_response: ErrorLogsAggregation = mon_es
+            .get_agg_query::<ErrorLogsAggregation>(&search_query, &err_index_name)
             .await
             .context("[ReportServiceImpl->get_agg_err_datas_from_es] The `response body` could not be retrieved.")?;
 
         let agg_convert_result: Vec<ErrorAggHistoryBucket> =
-            convert_from_histogram_bucket(&cluster_name, &respnse_body)?;
-
+            convert_from_histogram_bucket(&cluster_name, &agg_response.logs_per_time.buckets)?;
+        
         Ok(agg_convert_result)
     }
-    
-    
-    #[doc = ""]
+
+    #[doc = "Generate a line chart visualization of error log history over time"]
+    /// # Arguments
+    /// * `report_type` - Type of report (Day, Week, Month, Year) - determines output path
+    /// * `err_agg_hist_list` - Aggregated error history data with timestamps and counts
+    /// * `start_at` - Start time of the data range (UTC)
+    /// * `end_at` - End time of the data range (UTC)
+    ///
+    /// # Returns
+    /// * `Ok(PathBuf)` - Path to the generated chart image file
+    /// * `Err` - If chart generation fails
+    ///
+    /// # Notes
+    /// - Generates a unique filename using current timestamp and random 6-digit number
+    /// - Chart title shows the time range in local timezone
+    /// - X-axis shows timestamps, Y-axis shows error counts
     async fn generate_err_history_graph(
         &self,
+        report_type: &ReportType,
         err_agg_hist_list: &[ErrorAggHistoryBucket],
         start_at: DateTime<Utc>,
         end_at: DateTime<Utc>,
-        
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<PathBuf> {
+        let cur_local_time: DateTime<Local> = Local::now();
+        let cur_local_time_str: String = convert_date_to_str_ymdhms(cur_local_time, Local);
 
-        
+        /* Generate 6-digit random number (100000 ~ 999999) */
+        let random_6_digit: u32 = {
+            let mut rng: ThreadRng = rand::rng();
+            rng.random_range(100_000..1_000_000)
+        };
 
+        let report_img_path_str: String = match report_type {
+            ReportType::Day => get_daily_report_config_info().img_path().to_string(),
+            ReportType::Week => get_weekly_report_config_info().img_path().to_string(),
+            ReportType::Month => get_monthly_report_config_info().img_path().to_string(),
+            ReportType::Year => get_yearly_report_config_info().img_path().to_string(),
+        };
 
-        Ok(())
+        let output_path: PathBuf = PathBuf::from(format!(
+            "{}/img_{}{}",
+            &report_img_path_str, cur_local_time_str, random_6_digit
+        ));
+
+        // 추후에 라벨 기능 수정 해야한다.... x 라벨이 너무 보이니까~~~~
+        let x_axis: Vec<String> = err_agg_hist_list
+            .iter()
+            .map(|eb| convert_date_to_str_full(eb.date_at, Local))
+            .collect();
+
+        let y_axis: Vec<i64> = err_agg_hist_list
+            .iter()
+            .map(|eb| eb.doc_count().clone())
+            .collect();
+
+        let agg_start_local_at: String =
+            convert_date_to_str_ymd(start_at.with_timezone(&Local), Local);
+        let agg_end_local_at: String = convert_date_to_str_ymd(end_at.with_timezone(&Local), Local);
+
+        self.chart_service
+            .generate_line_chart(
+                &format!(
+                    "[{}~{}] Elasticsearch Error Datas",
+                    &agg_start_local_at, &agg_end_local_at
+                ),
+                x_axis,
+                y_axis,
+                &output_path,
+                "timestamp",
+                "Error count",
+            )
+            .await?;
+
+        Ok(output_path)
     }
 }
 
@@ -248,14 +324,7 @@ where
             ReportType::Month => get_monthly_report_config_info().clone(),
             ReportType::Year => get_yearly_report_config_info().clone(),
         };
-
-        let time_range: ReportRange = match report_type {
-            ReportType::Day => ReportType::Day.range(),
-            ReportType::Week => ReportType::Week.range(),
-            ReportType::Month => ReportType::Month.range(),
-            ReportType::Year => ReportType::Year.range(),
-        };
-
+        
         let schedule: cron::Schedule = cron::Schedule::from_str(&report_config.cron_schedule)
             .map_err(|e| {
                 anyhow!(
@@ -303,6 +372,8 @@ where
             let report_time: DateTime<Local> = chrono::Local::now();
 
             /* The function runs when it's time to send the report email. */
+            self.report_cluster_issues(&report_type).await?;
+            //self.report_cluster_issues(&report_type).await
             // self.report_index_cnt_task(
             //     mon_index_name,
             //     alarm_index_name,

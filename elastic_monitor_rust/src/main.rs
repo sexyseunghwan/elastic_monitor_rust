@@ -96,7 +96,7 @@ async fn main() {
     let chart_service: Arc<ChartServiceImpl> = Arc::new(ChartServiceImpl::new());
     let notification_service: Arc<NotificationServiceImpl> =
         Arc::new(NotificationServiceImpl::new());
-
+    
     /*
         Handler Dependency Injection
         Since multiple clusters can be monitored simultaneously,

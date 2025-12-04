@@ -31,3 +31,8 @@ pub struct DateHistogramBucket {
     pub key: i64,
     pub doc_count: i64,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct ErrorLogsAggregation {
+    pub logs_per_time: DateHistogramAggregation,
+}

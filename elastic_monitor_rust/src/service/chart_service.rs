@@ -74,7 +74,10 @@ impl ChartService for ChartServiceImpl {
         let handle: tokio::task::JoinHandle<Result<(), anyhow::Error>> =
             tokio::task::spawn_blocking(move || {
                 /* ---- From here, synchronous code (plotters) ---- */
-                let root = BitMapBackend::new(&output_path_str, (1400, 700)).into_drawing_area();
+                let root: plotters::prelude::DrawingArea<
+                    BitMapBackend<'_>,
+                    plotters::coord::Shift,
+                > = BitMapBackend::new(&output_path_str, (1400, 700)).into_drawing_area();
                 root.fill(&RGBColor(20, 20, 20))?;
 
                 let mut chart = ChartBuilder::on(&root)
@@ -116,6 +119,7 @@ impl ChartService for ChartServiceImpl {
                         let s: String = y.to_string();
                         let mut result: String = String::new();
                         let mut count: i32 = 0;
+
                         for c in s.chars().rev() {
                             if count == 3 {
                                 result.push(',');
