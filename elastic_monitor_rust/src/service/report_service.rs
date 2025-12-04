@@ -70,6 +70,8 @@ where
             .await
             .context("[ReportServiceImpl->report_cluster_issues]")?;
 
+        //println!("{:?}", img_path)
+
         Ok(())
     }
 
@@ -118,6 +120,8 @@ where
             },
             "size": 10000
         });
+
+        println!("{}", err_index_name);
 
         let respnse_body: Vec<ErrorLogInfo> = mon_es
             .get_search_query::<ErrorLogInfo>(&search_query, &err_index_name)
@@ -224,7 +228,7 @@ where
             .get_agg_query::<ErrorLogsAggregation>(&search_query, &err_index_name)
             .await
             .context("[ReportServiceImpl->get_agg_err_datas_from_es] The `response body` could not be retrieved.")?;
-
+        
         let agg_convert_result: Vec<ErrorAggHistoryBucket> =
             convert_from_histogram_bucket(&cluster_name, &agg_response.logs_per_time.buckets)?;
         
@@ -273,6 +277,8 @@ where
             "{}/img_{}{}",
             &report_img_path_str, cur_local_time_str, random_6_digit
         ));
+
+        println!("{:?}", output_path);
 
         // 추후에 라벨 기능 수정 해야한다.... x 라벨이 너무 보이니까~~~~
         let x_axis: Vec<String> = err_agg_hist_list

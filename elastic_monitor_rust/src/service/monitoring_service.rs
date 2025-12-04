@@ -48,7 +48,7 @@ where
 
         Ok(())
     }
-
+    
     #[doc = "Function that monityors the cluster's status -> GREEN, YELLOW, RED"]
     async fn cluster_health_check(&self) -> Result<(), anyhow::Error> {
         let health_status: String = self.metric_service.get_cluster_health_check().await?;

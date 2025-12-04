@@ -96,7 +96,7 @@ async fn main() {
     let chart_service: Arc<ChartServiceImpl> = Arc::new(ChartServiceImpl::new());
     let notification_service: Arc<NotificationServiceImpl> =
         Arc::new(NotificationServiceImpl::new());
-    
+
     /*
         Handler Dependency Injection
         Since multiple clusters can be monitored simultaneously,
@@ -133,7 +133,7 @@ async fn main() {
                 ChartServiceImpl,
             >,
         > = MainController::new(monitoring_service, report_service);
-
+        
         tokio::spawn(async move {
             if let Err(e) = controller.main_task().await {
                 error!("[main] controller error: {:?}", e);
