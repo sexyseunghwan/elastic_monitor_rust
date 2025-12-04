@@ -133,7 +133,7 @@ async fn main() {
                 ChartServiceImpl,
             >,
         > = MainController::new(monitoring_service, report_service);
-        
+
         tokio::spawn(async move {
             if let Err(e) = controller.main_task().await {
                 error!("[main] controller error: {:?}", e);

@@ -37,7 +37,7 @@ where
         /* 1. Monitoring task */
         let monitoring_handle: tokio::task::JoinHandle<()> =
             Self::spawn_monitoring_task(Arc::clone(&self.monitoring_service), &cluster_name);
-        
+
         /* 2. Report Tasks list */
         let daily_enabled: bool = get_daily_report_config_info().enabled;
         let weekly_enabled: bool = get_weekly_report_config_info().enabled;
@@ -63,13 +63,13 @@ where
         // );
 
         /* 3. Monthly report task */
-        let monthly_report_handle = Self::spawn_report_task(
-            Arc::clone(&self.report_service),
-            ReportType::Month,
-            "monthly_report_task",
-            monthly_enabled,
-            &cluster_name,
-        );
+        // let monthly_report_handle = Self::spawn_report_task(
+        //     Arc::clone(&self.report_service),
+        //     ReportType::Month,
+        //     "monthly_report_task",
+        //     monthly_enabled,
+        //     &cluster_name,
+        // );
 
         /* 4. Yearly report task */
         // let yearly_report_handle = Self::spawn_report_task(
@@ -89,10 +89,10 @@ where
         //     yearly_report_handle
         // );
 
-        let _ = tokio::join!(
-            monitoring_handle,
-            monthly_report_handle
-        );
+        // let _ = tokio::join!(
+        //     monitoring_handle,
+        //     monthly_report_handle
+        // );
 
         Ok(())
     }

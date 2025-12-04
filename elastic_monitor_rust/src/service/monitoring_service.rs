@@ -48,7 +48,7 @@ where
 
         Ok(())
     }
-    
+
     #[doc = "Function that monityors the cluster's status -> GREEN, YELLOW, RED"]
     async fn cluster_health_check(&self) -> Result<(), anyhow::Error> {
         let health_status: String = self.metric_service.get_cluster_health_check().await?;
@@ -91,13 +91,13 @@ where
             }
         }
 
-        /* 모니터링 할 인덱스 metric value 를 서버로 Post */
-        match self.metric_service.post_cluster_index_infos().await {
-            Ok(_) => (),
-            Err(e) => {
-                error!("[MainHandler->post_cluster_index_infos] {:?}", e);
-            }
-        }
+        /* 모니터링 할 인덱스 metric value 를 서버로 Post -> 당분간 안쓰는 기능 -> 특정 인덱스별로 모니터링 진행함 */
+        // match self.metric_service.post_cluster_index_infos().await {
+        //     Ok(_) => (),
+        //     Err(e) => {
+        //         error!("[MainHandler->post_cluster_index_infos] {:?}", e);
+        //     }
+        // }
 
         Ok(())
     }
@@ -143,39 +143,23 @@ where
     #[doc = ""]
     async fn monitoring_loop(&self) -> anyhow::Result<()> {
         loop {
-            match self.cluster_nodes_check().await {
-                Ok(_) => (),
-                Err(e) => {
-                    error!("[MonitoringServiceImpl->monitoring_loop] cluster_nodes_check() error: {:?}", e);
-                    continue;
-                }
-            };
-
-            match self.cluster_health_check().await {
-                Ok(_) => (),
-                Err(e) => {
-                    error!("[MonitoringServiceImpl->monitoring_loop] cluster_health_check() error: {:?}", e);
-                    continue;
-                }
+            if let Err(e) = self.cluster_nodes_check().await {
+                error!("[MonitoringServiceImpl->monitoring_loop] cluster_nodes_check() error: {:?}", e);
             }
 
-            match self.input_es_metric_infos().await {
-                Ok(_) => (),
-                Err(e) => {
-                    error!("[MonitoringServiceImpl->monitoring_loop] input_es_metric_infos() error: {:?}", e);
-                    continue;
-                }
+            if let Err(e) = self.cluster_health_check().await {
+                error!("[MonitoringServiceImpl->monitoring_loop] cluster_health_check() error: {:?}", e);
             }
 
-            match self.send_alarm_urgent_infos().await {
-                Ok(_) => (),
-                Err(e) => {
-                    error!("[MonitoringServiceImpl->monitoring_loop] send_alarm_urgent_infos() error: {:?}", e);
-                    continue;
-                }
+            if let Err(e) = self.input_es_metric_infos().await {
+                error!("[MonitoringServiceImpl->monitoring_loop] input_es_metric_infos() error: {:?}", e);
             }
 
-            std_sleep(Duration::from_secs(100));
+            if let Err(e) = self.send_alarm_urgent_infos().await {
+                error!("[MonitoringServiceImpl->monitoring_loop] send_alarm_urgent_infos() error: {:?}", e);
+            }
+
+            std_sleep(Duration::from_secs(10));
         }
     }
 

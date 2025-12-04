@@ -329,7 +329,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
 
                 let disk_usage: f64 =
                     get_percentage_round_conversion(disk_total - disk_available, disk_total, 2)?;
-
+                
                 let jvm_young_usage: i64 =
                     get_value_by_path(node_info, "jvm.mem.pools.young.used_in_bytes")?;
                 let jvm_old_usage: i64 =
@@ -701,9 +701,12 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
         /* 3. GET /_cat/thread_pool */
         self.get_cat_thread_pool_handle(&mut metric_vec).await?;
 
-        for metric in metric_vec {
-            let document: Value = serde_json::to_value(&metric)?;
-            mon_es.post_doc(&index_name, document).await?;
+        for metric in metric_vec.into_iter() {
+            let document: Value = serde_json::to_value(metric)?;
+
+            if let Err(e) = mon_es.post_doc(&index_name, document).await {
+                error!("[MetricServiceImpl->post_cluster_nodes_infos] {:?}", e);
+            }
         }
 
         Ok(())
@@ -748,7 +751,10 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
             };
 
             let document: Value = serde_json::to_value(&index_metric_info)?;
-            mon_es.post_doc(&index_name, document).await?;
+
+            if let Err(e) = mon_es.post_doc(&index_name, document).await {
+                error!("[MetricServiceImpl->post_cluster_index_infos] {:?}", e)
+            }
         }
 
         Ok(())

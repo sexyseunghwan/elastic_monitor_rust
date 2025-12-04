@@ -35,14 +35,13 @@ where
 {
     #[doc = ""]
     async fn report_cluster_issues(&self, report_type: &ReportType) -> anyhow::Result<()> {
-        
         let time_range: ReportRange = match report_type {
             ReportType::Day => ReportType::Day.range(),
             ReportType::Week => ReportType::Week.range(),
             ReportType::Month => ReportType::Month.range(),
             ReportType::Year => ReportType::Year.range(),
         };
-        
+
         // "minute" | "hour" | "day" | "week" | "month"
         let calendar_interval: &str = match report_type {
             ReportType::Day => "minute",
@@ -228,10 +227,10 @@ where
             .get_agg_query::<ErrorLogsAggregation>(&search_query, &err_index_name)
             .await
             .context("[ReportServiceImpl->get_agg_err_datas_from_es] The `response body` could not be retrieved.")?;
-        
+
         let agg_convert_result: Vec<ErrorAggHistoryBucket> =
             convert_from_histogram_bucket(&cluster_name, &agg_response.logs_per_time.buckets)?;
-        
+
         Ok(agg_convert_result)
     }
 
@@ -330,7 +329,7 @@ where
             ReportType::Month => get_monthly_report_config_info().clone(),
             ReportType::Year => get_yearly_report_config_info().clone(),
         };
-        
+
         let schedule: cron::Schedule = cron::Schedule::from_str(&report_config.cron_schedule)
             .map_err(|e| {
                 anyhow!(
