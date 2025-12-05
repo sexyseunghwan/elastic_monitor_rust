@@ -1,6 +1,7 @@
 use crate::common::*;
 
 use crate::traits::service::chart_service_trait::*;
+
 #[derive(Debug, Clone, new)]
 pub struct ChartServiceImpl;
 

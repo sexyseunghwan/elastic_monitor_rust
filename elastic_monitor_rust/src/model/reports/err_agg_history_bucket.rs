@@ -45,7 +45,7 @@ pub fn convert_from_histogram_bucket(
             })
         })
         .collect();
-
+    
     if histogram_buckets.len() < date_histograms.len() {
         warn!(
             "[ErrorAggHistoryBucket::convert_from_histogram_bucket] {} buckets skipped due to missing key_as_string",

@@ -62,15 +62,14 @@ where
         let to_wirte_graph_datas: Vec<ErrorAggHistoryBucket> = self
             .get_agg_err_datas_from_es(start_at, end_at, calendar_interval)
             .await?;
-
+            
         // 이제 to_wirte_graph_datas 이걸 기준으로 그래프를 만들어주자.
         let img_path: PathBuf = self
             .generate_err_history_graph(report_type, &to_wirte_graph_datas, start_at, end_at)
             .await
             .context("[ReportServiceImpl->report_cluster_issues]")?;
-
+        
         //println!("{:?}", img_path)
-
         Ok(())
     }
 
@@ -256,6 +255,11 @@ where
         start_at: DateTime<Utc>,
         end_at: DateTime<Utc>,
     ) -> anyhow::Result<PathBuf> {
+        
+        for elem in err_agg_hist_list {
+            println!("{:?}", elem);
+        }
+        
         let cur_local_time: DateTime<Local> = Local::now();
         let cur_local_time_str: String = convert_date_to_str_ymdhms(cur_local_time, Local);
 
@@ -264,7 +268,7 @@ where
             let mut rng: ThreadRng = rand::rng();
             rng.random_range(100_000..1_000_000)
         };
-
+        
         let report_img_path_str: String = match report_type {
             ReportType::Day => get_daily_report_config_info().img_path().to_string(),
             ReportType::Week => get_weekly_report_config_info().img_path().to_string(),
@@ -273,7 +277,7 @@ where
         };
 
         let output_path: PathBuf = PathBuf::from(format!(
-            "{}/img_{}{}",
+            "{}img_{}_{}.png",
             &report_img_path_str, cur_local_time_str, random_6_digit
         ));
 
@@ -321,7 +325,6 @@ where
 {
     #[doc = "Function that provides a report service"]
     async fn report_loop(&self, report_type: ReportType) -> anyhow::Result<()> {
-        //async fn report_loop(&self, report_config: ReportConfig) -> anyhow::Result<()> {
 
         let report_config: ReportConfig = match report_type {
             ReportType::Day => get_daily_report_config_info().clone(),
@@ -372,10 +375,10 @@ where
 
             let wake: Instant = Instant::now() + duration_until_next_run;
             sleep_until(wake).await;
-
+            
             /* Get the current time after waking up */
-            let report_time: DateTime<Local> = chrono::Local::now();
-
+            let report_time: DateTime<Local> = chrono::Local::now(); // 애 따로 필요없을 것 같긴한데...?!...
+            
             /* The function runs when it's time to send the report email. */
             self.report_cluster_issues(&report_type).await?;
             //self.report_cluster_issues(&report_type).await

@@ -37,13 +37,13 @@ where
         /* 1. Monitoring task */
         let monitoring_handle: tokio::task::JoinHandle<()> =
             Self::spawn_monitoring_task(Arc::clone(&self.monitoring_service), &cluster_name);
-
+        
         /* 2. Report Tasks list */
         let daily_enabled: bool = get_daily_report_config_info().enabled;
         let weekly_enabled: bool = get_weekly_report_config_info().enabled;
         let monthly_enabled: bool = get_monthly_report_config_info().enabled;
         let yearly_enabled: bool = get_yearly_report_config_info().enabled;
-
+        
         /* 1. Daily report task */
         // let daily_report_handle = Self::spawn_report_task(
         //     Arc::clone(&self.report_service),
@@ -52,7 +52,7 @@ where
         //     daily_enabled,
         //     &cluster_name,
         // );
-
+        
         // /* 2. Weekly report task */
         // let weekly_report_handle = Self::spawn_report_task(
         //     Arc::clone(&self.report_service),
@@ -63,14 +63,14 @@ where
         // );
 
         /* 3. Monthly report task */
-        // let monthly_report_handle = Self::spawn_report_task(
-        //     Arc::clone(&self.report_service),
-        //     ReportType::Month,
-        //     "monthly_report_task",
-        //     monthly_enabled,
-        //     &cluster_name,
-        // );
-
+        let monthly_report_handle = Self::spawn_report_task(
+            Arc::clone(&self.report_service),
+            ReportType::Month,
+            "monthly_report_task",
+            monthly_enabled,
+            &cluster_name,
+        );
+        
         /* 4. Yearly report task */
         // let yearly_report_handle = Self::spawn_report_task(
         //     Arc::clone(&self.report_service),
@@ -88,11 +88,11 @@ where
         //     monthly_report_handle,
         //     yearly_report_handle
         // );
-
-        // let _ = tokio::join!(
-        //     monitoring_handle,
-        //     monthly_report_handle
-        // );
+        
+        let _ = tokio::join!(
+            monitoring_handle,
+            monthly_report_handle
+        );
 
         Ok(())
     }
@@ -114,7 +114,7 @@ where
             }
         })
     }
-
+    
     #[doc = "Spawn report task as a separate tokio task"]
     fn spawn_report_task(
         service: Arc<R>,

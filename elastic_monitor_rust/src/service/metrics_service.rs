@@ -708,7 +708,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
                 error!("[MetricServiceImpl->post_cluster_nodes_infos] {:?}", e);
             }
         }
-
+        
         Ok(())
     }
 
@@ -718,9 +718,9 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
 
         let now: NaiveDateTime = get_currnet_utc_naivedatetime();
         let now_str: String = format_datetime(now)?;
-
+        
         let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
-
+        
         let cluster_index_monitor_pattern: String = mon_es
             .get_cluster_index_monitoring_pattern()
             .ok_or_else(|| anyhow!("[MetricServiceImpl->post_cluster_index_infos] cluster_index_monitor_pattern is empty"))?;
@@ -759,7 +759,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
 
         Ok(())
     }
-
+    
     #[doc = "긴급한 지표를 모니터링한 후 반환해주는 함수"]
     async fn get_alarm_urgent_infos(&self) -> Result<Vec<UrgentAlarmInfo>, anyhow::Error> {
         let (now, _past, now_str, past_str) = make_time_range(20)?;
