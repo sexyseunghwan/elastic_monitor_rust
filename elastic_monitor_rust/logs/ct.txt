@@ -1,0 +1,423 @@
+====================================
+지마켓 코딩테스트 대비 HackerRank 문제 리스트
+====================================
+
+※ 지마켓 특징: 간단한 자료구조 + 객체지향 + 프로그래밍 기본기 중심
+※ 시간이 부족하므로 아래 우선순위대로 학습 권장
+
+====================================
+【 최우선 연습 문제 (필수 - 1~2일) 】
+====================================
+
+■ 배열/문자열 기본 (5문제)
+----------------------------------
+1. Arrays - DS
+   https://www.hackerrank.com/challenges/arrays-ds
+   난이도: Easy | 배열 역순 출력
+
+2. 2D Array - DS
+   https://www.hackerrank.com/challenges/2d-array
+   난이도: Easy | 2차원 배열 최대값 (Hourglass 패턴)
+
+3. Left Rotation
+   https://www.hackerrank.com/challenges/array-left-rotation
+   난이도: Easy | 배열 왼쪽 회전
+
+4. Sparse Arrays
+   https://www.hackerrank.com/challenges/sparse-arrays
+   난이도: Medium | 문자열 개수 세기 (HashMap 활용)
+
+5. Array Manipulation
+   https://www.hackerrank.com/challenges/crush
+   난이도: Hard | 배열 구간 업데이트 (Difference Array 기법)
+
+
+■ 해시맵/딕셔너리 (3문제)
+----------------------------------
+6. Hash Tables: Ransom Note
+   https://www.hackerrank.com/challenges/ctci-ransom-note
+   난이도: Easy | 해시맵으로 문자열 개수 체크
+
+7. Two Strings
+   https://www.hackerrank.com/challenges/two-strings
+   난이도: Easy | 두 문자열의 공통 문자 찾기
+
+8. Sherlock and Anagrams
+   https://www.hackerrank.com/challenges/sherlock-and-anagrams
+   난이도: Medium | 부분 문자열 애너그램 개수
+
+
+■ 스택/큐 (4문제)
+----------------------------------
+9. Balanced Brackets
+   https://www.hackerrank.com/challenges/balanced-brackets
+   난이도: Medium | 괄호 짝 맞추기 (스택)
+
+10. Queue using Two Stacks
+    https://www.hackerrank.com/challenges/queue-using-two-stacks
+    난이도: Medium | 스택 2개로 큐 구현
+
+11. Simple Text Editor
+    https://www.hackerrank.com/challenges/simple-text-editor
+    난이도: Medium | Undo 기능 구현 (스택)
+
+12. Largest Rectangle
+    https://www.hackerrank.com/challenges/largest-rectangle
+    난이도: Medium | 히스토그램 최대 직사각형 (스택)
+
+
+====================================
+【 우선순위 2 - 객체지향 및 클래스 설계 (1~2일) 】
+====================================
+
+■ 객체지향 프로그래밍 (5문제)
+----------------------------------
+13. Class vs Instance
+    https://www.hackerrank.com/challenges/30-class-vs-instance
+    난이도: Easy | 클래스와 인스턴스 기본
+
+14. Abstract Classes
+    https://www.hackerrank.com/challenges/30-abstract-classes
+    난이도: Easy | 추상 클래스 구현
+
+15. Inheritance
+    https://www.hackerrank.com/challenges/30-inheritance
+    난이도: Easy | 상속 개념
+
+16. Interfaces
+    https://www.hackerrank.com/challenges/30-interfaces
+    난이도: Easy | 인터페이스 구현
+
+17. Java Exception Handling
+    https://www.hackerrank.com/challenges/java-exception-handling
+    난이도: Easy | 예외 처리
+
+
+■ 실전 클래스 설계 문제 (3문제)
+----------------------------------
+18. Design a Stack With Increment Operation
+    (LeetCode 1381 - HackerRank 유사 문제)
+    난이도: Medium | 커스텀 스택 구현
+
+19. Java Priority Queue
+    https://www.hackerrank.com/challenges/java-priority-queue
+    난이도: Medium | Student 클래스와 우선순위 큐
+
+20. Java Comparator
+    https://www.hackerrank.com/challenges/java-comparator
+    난이도: Medium | Comparator 인터페이스 구현
+
+
+====================================
+【 우선순위 3 - 연결리스트 (1일) 】
+====================================
+
+21. Print the Elements of a Linked List
+    https://www.hackerrank.com/challenges/print-the-elements-of-a-linked-list
+    난이도: Easy | 연결리스트 순회
+
+22. Insert a Node at the Tail
+    https://www.hackerrank.com/challenges/insert-a-node-at-the-tail-of-a-linked-list
+    난이도: Easy | 연결리스트 삽입
+
+23. Insert a node at a specific position
+    https://www.hackerrank.com/challenges/insert-a-node-at-a-specific-position-in-a-linked-list
+    난이도: Easy | 특정 위치 삽입
+
+24. Delete a Node
+    https://www.hackerrank.com/challenges/delete-a-node-from-a-linked-list
+    난이도: Easy | 노드 삭제
+
+25. Reverse a linked list
+    https://www.hackerrank.com/challenges/reverse-a-linked-list
+    난이도: Easy | 연결리스트 뒤집기
+
+26. Detect a cycle
+    https://www.hackerrank.com/challenges/detect-whether-a-linked-list-contains-a-cycle
+    난이도: Easy | 사이클 탐지 (Floyd's Algorithm)
+
+27. Find Merge Point of Two Lists
+    https://www.hackerrank.com/challenges/find-the-merge-point-of-two-joined-linked-lists
+    난이도: Easy | 두 연결리스트 합류점
+
+
+====================================
+【 우선순위 4 - 트리 기본 (1일) 】
+====================================
+
+28. Tree: Preorder Traversal
+    https://www.hackerrank.com/challenges/tree-preorder-traversal
+    난이도: Easy | 전위 순회
+
+29. Tree: Postorder Traversal
+    https://www.hackerrank.com/challenges/tree-postorder-traversal
+    난이도: Easy | 후위 순회
+
+30. Tree: Inorder Traversal
+    https://www.hackerrank.com/challenges/tree-inorder-traversal
+    난이도: Easy | 중위 순회
+
+31. Tree: Height of a Binary Tree
+    https://www.hackerrank.com/challenges/tree-height-of-a-binary-tree
+    난이도: Easy | 트리 높이
+
+32. Binary Search Tree: Insertion
+    https://www.hackerrank.com/challenges/binary-search-tree-insertion
+    난이도: Easy | BST 삽입
+
+33. Tree: Level Order Traversal
+    https://www.hackerrank.com/challenges/tree-level-order-traversal
+    난이도: Easy | 레벨 순회 (BFS)
+
+34. Binary Search Tree: Lowest Common Ancestor
+    https://www.hackerrank.com/challenges/binary-search-tree-lowest-common-ancestor
+    난이도: Easy | BST 최소 공통 조상
+
+
+====================================
+【 우선순위 5 - 정렬/탐색 (1일) 】
+====================================
+
+35. Bubble Sort
+    https://www.hackerrank.com/challenges/ctci-bubble-sort
+    난이도: Easy | 버블 정렬 구현
+
+36. Mark and Toys
+    https://www.hackerrank.com/challenges/mark-and-toys
+    난이도: Easy | 그리디 + 정렬
+
+37. Sorting: Comparator
+    https://www.hackerrank.com/challenges/ctci-comparator-sorting
+    난이도: Medium | 커스텀 정렬
+
+38. Binary Search: Ice Cream Parlor
+    https://www.hackerrank.com/challenges/ctci-ice-cream-parlor
+    난이도: Medium | 이진 탐색
+
+39. Merge Sort: Counting Inversions
+    https://www.hackerrank.com/challenges/ctci-merge-sort
+    난이도: Hard | 병합 정렬 + Inversion Count
+
+
+====================================
+【 우선순위 6 - 재귀/백트래킹 (시간 있으면) 】
+====================================
+
+40. Recursive Digit Sum
+    https://www.hackerrank.com/challenges/recursive-digit-sum
+    난이도: Medium | 재귀로 자릿수 합
+
+41. The Power Sum
+    https://www.hackerrank.com/challenges/the-power-sum
+    난이도: Medium | 백트래킹
+
+42. Crossword Puzzle
+    https://www.hackerrank.com/challenges/crossword-puzzle
+    난이도: Medium | 백트래킹
+
+
+====================================
+【 우선순위 7 - 그래프 기본 (시간 있으면) 】
+====================================
+
+43. Breadth First Search: Shortest Reach
+    https://www.hackerrank.com/challenges/ctci-bfs-shortest-reach
+    난이도: Hard | BFS 최단 경로
+
+44. DFS: Connected Cell in a Grid
+    https://www.hackerrank.com/challenges/ctci-connected-cell-in-a-grid
+    난이도: Hard | DFS로 영역 찾기
+
+45. Snakes and Ladders
+    https://www.hackerrank.com/challenges/the-quickest-way-up
+    난이도: Medium | BFS
+
+
+====================================
+【 추가 - 문자열 처리 (빈출) 】
+====================================
+
+46. CamelCase
+    https://www.hackerrank.com/challenges/camelcase
+    난이도: Easy | 대문자 개수 세기
+
+47. Strong Password
+    https://www.hackerrank.com/challenges/strong-password
+    난이도: Easy | 조건 체크
+
+48. Super Reduced String
+    https://www.hackerrank.com/challenges/reduced-string
+    난이도: Easy | 연속된 문자 제거
+
+49. String Construction
+    https://www.hackerrank.com/challenges/string-construction
+    난이도: Easy | 최소 비용 계산
+
+50. Alternating Characters
+    https://www.hackerrank.com/challenges/alternating-characters
+    난이도: Easy | 연속된 같은 문자 삭제
+
+
+====================================
+【 실전 대비 추천 학습 순서 (시간별) 】
+====================================
+
+▶ D-1 (하루만 있을 때) - 20문제
+----------------------------------
+1. 배열/문자열 기본: 문제 1, 2, 3, 4
+2. 해시맵: 문제 6, 7
+3. 스택/큐: 문제 9, 10, 11
+4. 객체지향: 문제 13, 14, 15, 16, 17
+5. 연결리스트: 문제 21, 22, 25, 26
+6. 트리: 문제 28, 31, 33
+7. 정렬: 문제 35, 36
+
+
+▶ D-2 (이틀 있을 때) - 35문제
+----------------------------------
+[1일차]
+- 배열/문자열: 문제 1~5
+- 해시맵: 문제 6~8
+- 스택/큐: 문제 9~12
+- 연결리스트: 문제 21~27
+
+[2일차]
+- 객체지향: 문제 13~20
+- 트리: 문제 28~34
+- 정렬/탐색: 문제 35~38
+
+
+▶ D-3 (사흘 있을 때) - 45문제
+----------------------------------
+[1일차]
+- 배열/문자열: 문제 1~5
+- 해시맵: 문제 6~8
+- 문자열 처리: 문제 46~50
+
+[2일차]
+- 스택/큐: 문제 9~12
+- 연결리스트: 문제 21~27
+- 트리: 문제 28~34
+
+[3일차]
+- 객체지향: 문제 13~20
+- 정렬/탐색: 문제 35~39
+- 재귀: 문제 40~41
+
+
+====================================
+【 언어별 주의사항 】
+====================================
+
+■ Java 사용 시
+----------------------------------
+- Scanner vs BufferedReader (입력 속도)
+- ArrayList vs LinkedList 차이 숙지
+- HashMap vs TreeMap vs LinkedHashMap
+- PriorityQueue (힙) 사용법
+- Comparator vs Comparable
+- 제네릭 타입 이해
+- Stream API (Java 8+) 활용
+
+■ Python 사용 시
+----------------------------------
+- collections.Counter, defaultdict 활용
+- collections.deque (큐/스택)
+- heapq (우선순위 큐)
+- 리스트 컴프리헨션
+- enumerate, zip 활용
+- set 자료구조 활용
+- sorted() vs list.sort()
+
+■ C++ 사용 시
+----------------------------------
+- STL 컨테이너 (vector, map, set, queue, stack)
+- auto 키워드 활용
+- pair, tuple 사용
+- priority_queue 사용법
+- algorithm 헤더 함수들 (sort, binary_search 등)
+
+
+====================================
+【 코딩테스트 팁 】
+====================================
+
+1. 시간 복잡도 체크
+   - O(N): 선형 탐색
+   - O(N log N): 정렬, 이진 탐색
+   - O(N²): 중첩 반복문 (최대 N=1000 정도)
+   - O(2^N): 백트래킹, DFS (최대 N=20 정도)
+
+2. 공간 복잡도
+   - 메모리 제한 확인 (보통 256MB)
+   - 불필요한 배열 복사 지양
+
+3. 엣지 케이스
+   - 빈 입력, 크기 1인 입력
+   - 중복 값, 음수, 0
+   - 최소값, 최댓값
+
+4. 객체지향 문제 접근
+   - 클래스 설계: 캡슐화, 상속, 다형성 고려
+   - 적절한 접근 제어자 (private, public)
+   - getter/setter 필요 시 구현
+   - toString, equals, hashCode 오버라이드
+
+5. 코드 가독성
+   - 의미 있는 변수명
+   - 함수 분리 (역할별)
+   - 주석 (복잡한 로직만)
+
+6. 디버깅
+   - 샘플 입력으로 먼저 테스트
+   - 중간 출력으로 디버깅
+   - 예외 처리
+
+
+====================================
+【 HackerRank 계정 및 연습 가이드 】
+====================================
+
+1. 계정 생성
+   https://www.hackerrank.com/
+
+2. Practice 섹션
+   https://www.hackerrank.com/domains/algorithms
+
+3. Interview Preparation Kit (추천)
+   https://www.hackerrank.com/interview/interview-preparation-kit
+   - Arrays
+   - Dictionaries and Hashmaps
+   - Sorting
+   - String Manipulation
+   - Greedy Algorithms
+   - Search
+   - Dynamic Programming
+   - Stacks and Queues
+   - Graphs
+   - Trees
+   - Linked Lists
+   - Recursion and Backtracking
+
+4. Data Structures 섹션
+   https://www.hackerrank.com/domains/data-structures
+
+5. 30 Days of Code (기본기 다지기)
+   https://www.hackerrank.com/domains/tutorials/30-days-of-code
+
+
+====================================
+【 마지막 점검 사항 】
+====================================
+
+□ 입출력 처리 완벽히 숙지
+□ 주요 자료구조 직접 구현 가능
+□ 시간 복잡도 계산 능력
+□ 객체지향 4대 원칙 이해
+□ 예외 처리 습관화
+□ 코드 스타일 일관성 유지
+
+
+====================================
+작성일: 2025년 12월 8일
+====================================
