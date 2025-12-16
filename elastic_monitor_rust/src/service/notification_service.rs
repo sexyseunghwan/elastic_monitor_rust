@@ -100,7 +100,7 @@ impl NotificationServiceImpl {
         html_content: &str,
         receiver_email_list: &ReceiverEmailList,
     ) -> anyhow::Result<()> {
-        let sql_server_repo: Arc<SqlServerRepositoryPub> = get_sql_server_repo();
+        let sql_server_repo: Arc<SqlServerRepositoryImpl> = get_sql_server_repo();
 
         for email in receiver_email_list.receivers() {
             match sql_server_repo
@@ -215,6 +215,94 @@ impl NotificationServiceImpl {
             Err(e) => Err(anyhow!("{:?} : Failed to send email to {} ", e, email_id)),
         }
     }
+
+    #[doc = ""]
+    async fn send_message_to_receivers_smtp(
+        &self,
+        email_subject: &str,
+        html_content: &str,
+        receiver_email_list: &ReceiverEmailList,
+    ) -> anyhow::Result<()> {
+        let smtp_config: &SmtpConfig = get_smtp_config_info();
+
+        let tasks = receiver_email_list.receivers().iter().map(|receiver| {
+            let email_id: &String = receiver.email_id();
+            self.send_message_to_receiver_html(smtp_config, email_id, email_subject, html_content)
+        });
+
+        let results: Vec<Result<String, anyhow::Error>> = join_all(tasks).await;
+
+        for result in results {
+            match result {
+                Ok(succ_email_id) => info!("Email sent successfully: {}", succ_email_id),
+                Err(e) => error!(
+                    "[NotificationServiceImpl->send_message_to_receivers()] Failed to send email: {:?}",
+                    e
+                ),
+            }
+        }
+
+        Ok(())
+    }
+
+    #[doc = r#"
+        Asynchronous function that sends HTML format email to individual recipient.
+
+        1. Creates email message object and sets sender/recipient/subject/body
+        2. Creates Credentials object based on SMTP server authentication information
+        3. Sets up connection to SMTP server through `AsyncSmtpTransport`
+        4. Attempts actual email sending through configured mailer
+        5. Returns recipient email address on successful sending, error on failure
+
+        This function sends emails asynchronously using the lettre crate,
+        and supports HTML multipart messages.
+
+        # Arguments
+        * `smtp_config` - SMTP server configuration information (includes server name, authentication info)
+        * `email_id` - Recipient email address
+        * `subject` - Email subject
+        * `html_content` - HTML format email body
+
+        # Returns
+        * `Ok(String)` - Recipient email address on successful sending
+        * `Err(anyhow::Error)` - On email composition or sending failure
+
+        # Errors
+        * Email address parsing failure
+        * SMTP server connection failure
+        * Authentication failure
+        * Message transmission failure
+    "#]
+    async fn send_message_to_receiver_html(
+        &self,
+        smtp_config: &SmtpConfig,
+        email_id: &str,
+        subject: &str,
+        html_content: &str,
+    ) -> Result<String, anyhow::Error> {
+        let email: Message = Message::builder()
+            .from(smtp_config.credential_id.parse()?)
+            .to(email_id.parse()?)
+            .subject(subject)
+            .multipart(
+                MultiPart::alternative().singlepart(SinglePart::html(html_content.to_string())),
+            )?;
+
+        let creds: Credentials = Credentials::new(
+            smtp_config.credential_id().to_string(),
+            smtp_config.credential_pw().to_string(),
+        );
+
+        let mailer: AsyncSmtpTransport<lettre::Tokio1Executor> =
+            AsyncSmtpTransport::<lettre::Tokio1Executor>::relay(smtp_config.smtp_name().as_str())?
+                .credentials(creds)
+                .build();
+
+        match mailer.send(email).await {
+            Ok(_) => Ok(email_id.to_string()),
+            Err(e) => Err(anyhow!("{:?} : Failed to send email to {} ", e, email_id)),
+        }
+    }
 }
 
 #[async_trait]
@@ -251,10 +339,42 @@ impl NotificationService for NotificationServiceImpl {
         Ok(())
     }
 
-    // async fn send_report_information_by_email(
-    //     &self,
-    //     email_subject: &str,
-    //     html_content: &str,
+    #[doc = ""]
+    async fn send_alert_infos_to_admin(
+        &self,
+        email_subject: &str,
+        html_content: &str,
+    ) -> anyhow::Result<()> {
+        let receiver_email_list: &ReceiverEmailList = self.email_list();
 
-    // )
+        /* SMTP version -> for online network use */
+        self.send_message_to_receivers_smtp(email_subject, html_content, receiver_email_list)
+            .await?;
+
+        /* Imailer version - Using stored procedure */
+        // let sql_conn: Arc<SqlServerRepositoryImpl> = get_sql_server_repo();
+
+        // for receiver in receiver_email_list.receivers() {
+        //     match sql_conn
+        //         .execute_imailer_procedure(receiver.email_id(), email_subject, html_content)
+        //         .await
+        //     {
+        //         Ok(_) => {
+        //             info!(
+        //                 "Successfully sent index alert mail to {}",
+        //                 receiver.email_id()
+        //             );
+        //         }
+        //         Err(e) => {
+        //             error!(
+        //                 "[ERROR][NotificationServiceImpl->send_alert_infos_to_admin] Failed to send mail to {} : {:?}",
+        //                 receiver.email_id(),
+        //                 e
+        //             );
+        //         }
+        //     }
+        // }
+
+        Ok(())
+    }
 }

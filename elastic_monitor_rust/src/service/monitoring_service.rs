@@ -55,6 +55,7 @@ where
 
         /* If problems occur with the Elasticsearch cluster */
         if health_status == "RED" {
+            //if health_status == "GREEN" {
             let cluster_name: String = self.metric_service.get_cluster_name();
             let danger_indicies: Vec<SearchIndicies> = self
                 .metric_service
@@ -144,15 +145,24 @@ where
     async fn monitoring_loop(&self) -> anyhow::Result<()> {
         loop {
             if let Err(e) = self.cluster_nodes_check().await {
-                error!("[MonitoringServiceImpl->monitoring_loop] cluster_nodes_check() error: {:?}", e);
+                error!(
+                    "[MonitoringServiceImpl->monitoring_loop] cluster_nodes_check() error: {:?}",
+                    e
+                );
             }
 
             if let Err(e) = self.cluster_health_check().await {
-                error!("[MonitoringServiceImpl->monitoring_loop] cluster_health_check() error: {:?}", e);
+                error!(
+                    "[MonitoringServiceImpl->monitoring_loop] cluster_health_check() error: {:?}",
+                    e
+                );
             }
 
             if let Err(e) = self.input_es_metric_infos().await {
-                error!("[MonitoringServiceImpl->monitoring_loop] input_es_metric_infos() error: {:?}", e);
+                error!(
+                    "[MonitoringServiceImpl->monitoring_loop] input_es_metric_infos() error: {:?}",
+                    e
+                );
             }
 
             if let Err(e) = self.send_alarm_urgent_infos().await {

@@ -34,7 +34,7 @@ pub fn make_time_range(
     sec_space: i64,
 ) -> Result<(NaiveDateTime, NaiveDateTime, String, String), anyhow::Error> {
     let now: NaiveDateTime = get_currnet_utc_naivedatetime();
-    let past: NaiveDateTime = now - chrono::Duration::seconds(sec_space); //20
+    let past: NaiveDateTime = now - chrono::Duration::seconds(sec_space);
 
     let now_str: String = format_datetime(now)?;
     let past_str: String = format_datetime(past)?;
@@ -42,57 +42,63 @@ pub fn make_time_range(
     Ok((now, past, now_str, past_str))
 }
 
-fn convert_date_to_str<Tz, TzOut>(
+#[doc = "Standard Function of Datetime"]
+fn convert_date_to_str<Tz>(
     time: DateTime<Tz>,
-    tz: TzOut, // Timezone (Utc, Local, FixedOffset ...)
+    tz: Tz, // Timezone (Utc, Local, FixedOffset ...)
     format: &str,
 ) -> String
 where
     Tz: TimeZone,
     Tz::Offset: Display,
-    TzOut: TimeZone,
-    TzOut::Offset: Display,
 {
     time.with_timezone(&tz).format(format).to_string()
 }
 
-pub fn convert_date_to_str_full<Tz, TzOut>(
+pub fn convert_date_to_str_full<Tz>(
     time: DateTime<Tz>,
-    tz: TzOut, // Timezone (Utc, Local, FixedOffset ...)
+    tz: Tz, // Timezone (Utc, Local, FixedOffset ...)
 ) -> String
 where
     Tz: TimeZone,
     Tz::Offset: Display,
-    TzOut: TimeZone,
-    TzOut::Offset: Display,
 {
     convert_date_to_str(time, tz, "%Y-%m-%dT%H:%M:%SZ")
 }
 
-pub fn convert_date_to_str_ymd<Tz, TzOut>(
+pub fn convert_date_to_str_ymd_mail<Tz>(time: DateTime<Tz>, tz: Tz) -> String
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
+    convert_date_to_str(time, tz, "%Y.%m.%d")
+}
+
+pub fn convert_date_to_str_ymd<Tz>(
     time: DateTime<Tz>,
-    tz: TzOut, // Timezone (Utc, Local, FixedOffset ...)
+    tz: Tz, // Timezone (Utc, Local, FixedOffset ...)
 ) -> String
 where
     Tz: TimeZone,
     Tz::Offset: Display,
-    TzOut: TimeZone,
-    TzOut::Offset: Display,
 {
     convert_date_to_str(time, tz, "%Y%m%d")
 }
 
-pub fn convert_date_to_str_ymdhms<Tz, TzOut>(
-    time: DateTime<Tz>,
-    tz: TzOut, // Timezone (Utc, Local, FixedOffset ...)
-) -> String
+pub fn convert_date_to_str_ymdhms<Tz>(time: DateTime<Tz>, tz: Tz) -> String
 where
     Tz: TimeZone,
     Tz::Offset: Display,
-    TzOut: TimeZone,
-    TzOut::Offset: Display,
 {
     convert_date_to_str(time, tz, "%Y%m%d%H%M%S")
+}
+
+pub fn convert_date_to_str_human<Tz>(time: DateTime<Tz>, tz: Tz) -> String
+where
+    Tz: TimeZone,
+    Tz::Offset: Display,
+{
+    convert_date_to_str(time, tz, "%Y.%m.%d %H:%M:%S")
 }
 
 pub fn convert_str_to_datetime<Tz>(time: &str, tz: Tz) -> anyhow::Result<DateTime<Tz>>

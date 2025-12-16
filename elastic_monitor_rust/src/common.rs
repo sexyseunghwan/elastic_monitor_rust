@@ -38,7 +38,7 @@ pub use elasticsearch::{
     http::Url,
     indices::IndicesStatsParts,
     nodes::NodesStatsParts,
-    Elasticsearch, IndexParts, SearchParts,
+    CountParts, Elasticsearch, IndexParts, SearchParts,
 };
 
 pub use tiberius::Row;

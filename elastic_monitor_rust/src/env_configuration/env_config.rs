@@ -47,3 +47,7 @@ pub static EMAIL_RECEIVER_DEV_PATH: once_lazy<String> =
 #[doc = "Function to globally initialize the 'MON_ELASTIC_INFO_PATH' variable"]
 pub static MON_ELASTIC_INFO_PATH: once_lazy<String> =
     once_lazy::new(|| get_env_or_panic("MON_ELASTIC_INFO_PATH"));
+
+#[doc = "Function to globally initialize the 'REPORT_HTML_TEMPLATE_PATH' variable"]
+pub static REPORT_HTML_TEMPLATE_PATH: once_lazy<String> =
+    once_lazy::new(|| get_env_or_panic("REPORT_HTML_TEMPLATE_PATH"));

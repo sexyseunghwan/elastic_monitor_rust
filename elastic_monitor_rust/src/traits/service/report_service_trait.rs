@@ -6,5 +6,5 @@ use crate::model::configs::{config::*, report_config::*};
 
 #[async_trait]
 pub trait ReportService {
-    async fn report_loop(&self, report_type: ReportType) -> anyhow::Result<()>;
+    async fn report_loop(&self, report_type: ReportType, cluster_name: &str) -> anyhow::Result<()>;
 }

@@ -152,4 +152,40 @@ impl ChartService for ChartServiceImpl {
 
         Ok(())
     }
+
+    #[doc = r#"
+        Function that encodes image file to Base64 and converts them to HTML img tag strings.
+
+        # Arguments
+        * `alarm_image_path` - image file paths
+
+        # Returns
+        * `anyhow::Result<String>` - Base64 encoded img tags
+    "#]
+    async fn convert_images_to_base64_html(
+        &self,
+        alarm_image_path: PathBuf,
+    ) -> anyhow::Result<String> {
+        use base64::{engine::general_purpose, Engine as _};
+
+        let img_data: Vec<u8> = tokio::fs::read(&alarm_image_path)
+                .await
+                .map_err(|e| {
+                    anyhow!(
+                        "[NotificationServiceImpl->convert_images_to_base64_html] Failed to read image: {:?}",
+                        e
+                    )
+                })?;
+
+        let base64_data: String = general_purpose::STANDARD.encode(&img_data);
+
+        let make_tag: String = format!(
+            r#"<div style="margin-bottom: 20px;">
+                    <img src="data:image/png;base64,{}" style="max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 5px;" />
+                </div>"#,
+            base64_data
+        );
+
+        Ok(make_tag)
+    }
 }

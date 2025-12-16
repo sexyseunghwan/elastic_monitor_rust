@@ -9,17 +9,17 @@ use crate::env_configuration::env_config::*;
 use crate::traits::repository::sql_server_repository_trait::*;
 
 #[doc = "전역 Sqlserver Client 인스턴스를 선언"]
-static SQL_SERVER_REPO: once_lazy<Arc<SqlServerRepositoryPub>> =
+static SQL_SERVER_REPO: once_lazy<Arc<SqlServerRepositoryImpl>> =
     once_lazy::new(initialize_sqlserver_client);
 
 #[derive(Getters, new)]
 #[getset(get = "pub")]
-pub struct SqlServerRepositoryPub {
+pub struct SqlServerRepositoryImpl {
     pub pool: Pool,
 }
 
 #[doc = "SQL Server 커넥션 풀 초기화 - 애플리케이션 시작 시 1회만 호출"]
-fn initialize_sqlserver_client() -> Arc<SqlServerRepositoryPub> {
+fn initialize_sqlserver_client() -> Arc<SqlServerRepositoryImpl> {
     info!("initialize_sqlserver_client() START!");
 
     /* TOML 로딩 */
@@ -59,16 +59,16 @@ fn initialize_sqlserver_client() -> Arc<SqlServerRepositoryPub> {
             }
         };
 
-    Arc::new(SqlServerRepositoryPub::new(pool))
+    Arc::new(SqlServerRepositoryImpl::new(pool))
 }
 
 #[doc = "SQL_SERVER_REPO를 Thread-safe 하게 이용하는 함수."]
-pub fn get_sql_server_repo() -> Arc<SqlServerRepositoryPub> {
+pub fn get_sql_server_repo() -> Arc<SqlServerRepositoryImpl> {
     Arc::clone(&SQL_SERVER_REPO)
 }
 
 #[async_trait]
-impl SqlServerRepository for SqlServerRepositoryPub {
+impl SqlServerRepository for SqlServerRepositoryImpl {
     #[doc = "SQL Server 아이메일러 관련 프로시저 호출"]
     async fn execute_imailer_procedure(
         &self,

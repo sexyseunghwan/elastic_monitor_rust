@@ -20,6 +20,11 @@ pub trait EsRepository {
         es_query: &Value,
         index_name: &str,
     ) -> Result<T, anyhow::Error>;
+    async fn get_count_query(
+        &self,
+        es_query: &Value,
+        index_name: &str,
+    ) -> Result<u64, anyhow::Error>;
     fn get_cluster_name(&self) -> String;
     fn get_cluster_all_host_infos(&self) -> Vec<String>;
     fn get_cluster_index_pattern(&self) -> Option<String>;

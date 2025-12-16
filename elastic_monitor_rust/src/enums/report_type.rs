@@ -1,3 +1,5 @@
+use chrono::Timelike;
+
 use crate::common::*;
 
 use crate::enums::report_range::*;
@@ -12,7 +14,9 @@ pub enum ReportType {
 
 impl ReportType {
     pub fn range(&self) -> ReportRange {
+        /* Stawndard -> UTC time */
         let now: DateTime<Utc> = Utc::now();
+
         match self {
             ReportType::Day => ReportRange {
                 from: now - ChronoDuration::days(1),
@@ -31,5 +35,15 @@ impl ReportType {
                 to: now,
             },
         }
+    }
+
+    pub fn get_name(&self) -> String {
+        match self {
+            ReportType::Day => "Daily",
+            ReportType::Week => "Weekly",
+            ReportType::Month => "Monthly",
+            ReportType::Year => "Yearly",
+        }
+        .to_string()
     }
 }
