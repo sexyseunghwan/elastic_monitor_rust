@@ -1,8 +1,7 @@
 use crate::common::*;
 
 use crate::model::cluster_dto::cluster_config::*;
-use crate::model::elastic_dto::elastic_source_parser::*;
-
+use crate::model::elastic_dto::{elastic_source_parser::*, host_urls::*};
 use crate::model::configs::{config::*, mon_elastic_config::*};
 
 use crate::utils_modules::io_utils::*;
@@ -156,17 +155,13 @@ pub fn initialize_db_clients() -> Result<Vec<EsRepositoryImpl>, anyhow::Error> {
 #[getset(get = "pub")]
 pub struct EsRepositoryImpl {
     pub cluster_name: String,
-    pub es_clients: Vec<Arc<EsClient>>,
+    pub es_client: Elasticsearch,
+    pub hosts: Vec<String>,
+    pub hosts_url_details: Vec<HostUrls>,
     pub index_pattern: Option<String>,
-    pub per_index_pattern: Option<String>,
+    pub per_index_pattern: Option<String>, /* deprecated... */
     pub urgent_index_pattern: Option<String>,
     pub err_log_index_pattern: Option<String>,
-}
-
-#[derive(Debug, Getters, Clone, new)]
-pub(crate) struct EsClient {
-    host: String,
-    es_conn: Elasticsearch,
 }
 
 impl EsRepositoryImpl {
@@ -192,30 +187,45 @@ impl EsRepositoryImpl {
         urgent_index_pattern: Option<&str>,
         err_log_index_pattern: Option<&str>,
     ) -> Result<Self, anyhow::Error> {
-        let mut es_clients: Vec<Arc<EsClient>> = Vec::new();
+        let mut urls: Vec<Url> = Vec::new();
+        let mut hosts_url_details: Vec<HostUrls> = Vec::new();
 
-        for url in hosts {
+        for host in &hosts {
+            
             let parse_url: String = if es_id.is_empty() && es_pw.is_empty() {
-                format!("http://{}", url)
+                format!("http://{}", host)
             } else {
-                let encoded_pw = urlencoding::encode(es_pw);
-                format!("http://{}:{}@{}", es_id, encoded_pw, url)
+                let encoded_pw: std::borrow::Cow<'_, str> = urlencoding::encode(es_pw);
+                format!("http://{}:{}@{}", es_id, encoded_pw, host)
             };
-
+            
+            let es_cluster_urls: Url = Url::parse(&format!("http://{}", host))?;
             let es_url: Url = Url::parse(&parse_url)?;
-            let conn_pool: SingleNodeConnectionPool = SingleNodeConnectionPool::new(es_url);
-            let transport: EsTransport = TransportBuilder::new(conn_pool)
-                .timeout(Duration::new(5, 0))
-                .build()?;
 
-            let elastic_conn: Elasticsearch = Elasticsearch::new(transport);
-            let es_client: Arc<EsClient> = Arc::new(EsClient::new(url, elastic_conn));
-            es_clients.push(es_client);
+            urls.push(es_cluster_urls);
+            hosts_url_details.push(HostUrls::new(host.to_string(), es_url));
         }
+        
+        /* MultiNodeConnectionPool 사용 - 자동 로드밸런싱 및 페일오버 */
+        let conn_pool: MultiNodeConnectionPool = MultiNodeConnectionPool::round_robin(urls, None);
+        // let transport: EsTransport = TransportBuilder::new(conn_pool)
+        //     .timeout(Duration::new(5, 0))
+        //     .build()?;
+        let mut builder: TransportBuilder = TransportBuilder::new(conn_pool).timeout(Duration::from_secs(5));
+
+        /* Apply Basic Authentication at the transport level.*/
+        if !es_id.is_empty() && !es_pw.is_empty() {
+            builder = builder.auth(EsCredentials::Basic(es_id.to_string(), es_pw.to_string()));
+        }
+
+        let transport: EsTransport = builder.build()?;
+        let es_client: Elasticsearch = Elasticsearch::new(transport);
 
         Ok(EsRepositoryImpl {
             cluster_name: cluster_name.to_string(),
-            es_clients,
+            es_client,
+            hosts,
+            hosts_url_details,
             index_pattern: log_index_pattern.map(str::to_string),
             per_index_pattern: per_index_pattern.map(str::to_string),
             urgent_index_pattern: urgent_index_pattern.map(str::to_string),
@@ -223,39 +233,28 @@ impl EsRepositoryImpl {
         })
     }
 
-    #[doc = "Common logic: common node failure handling and node selection"]
+    #[doc = "Helper function to check the connection status of a single node."]
     /// # Arguments
-    /// * `operation` - 실행할 함수 trait
+    /// * `url` - Host address to check
     ///
     /// # Returns
-    /// * Result<Response, anyhow::Error>
-    async fn execute_on_any_node<F, Fut>(&self, operation: F) -> Result<Response, anyhow::Error>
-    where
-        F: Fn(Arc<EsClient>) -> Fut + Send + Sync,
-        Fut: Future<Output = Result<Response, anyhow::Error>> + Send,
-    {
-        let mut last_error: Option<anyhow::Error> = None;
+    /// * bool - connection success status
+    async fn check_single_node_connection(url: Url) -> bool {
 
-        /* 클라이언트 목록을 셔플 */
-        let mut shuffled_clients: Vec<Arc<EsClient>> = self.es_clients.clone();
-        shuffled_clients.shuffle(&mut rand::rng());
-
-        /* 셔플된 클라이언트들에 대해 순차적으로 operation 수행 */
-        for es_client in shuffled_clients {
-            match operation(es_client).await {
-                Ok(response) => return Ok(response),
-                Err(err) => {
-                    last_error = Some(err);
+        match Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()
+        {
+            Ok(client) => {
+                match client.get(url).send().await {
+                    Ok(response) => response.status().is_success(),
+                    Err(_) => false,
                 }
             }
+            Err(_) => false,
         }
-
-        /* 모든 노드에서 실패했을 경우 에러 반환 */
-        Err(anyhow::anyhow!(
-            "All Elasticsearch nodes failed. Last error: {:?}",
-            last_error
-        ))
     }
+
 }
 
 #[async_trait]
@@ -265,17 +264,11 @@ impl EsRepository for EsRepositoryImpl {
     /// * Result<String, anyhow::Error> - 클러스터 내에 존재하는 각 인덱스들의 이름 및 health 정보
     async fn get_indices_info(&self) -> Result<String, anyhow::Error> {
         let response: Response = self
-            .execute_on_any_node(|es_client| async move {
-                let response: Response = es_client
-                    .es_conn
-                    .cat()
-                    .indices(CatIndicesParts::None)
-                    .h(&["health", "status", "index"])
-                    .send()
-                    .await?;
-
-                Ok(response)
-            })
+            .es_client
+            .cat()
+            .indices(CatIndicesParts::None)
+            .h(&["health", "status", "index"])
+            .send()
             .await?;
 
         if response.status_code().is_success() {
@@ -293,17 +286,10 @@ impl EsRepository for EsRepositoryImpl {
     #[doc = "Elasticsearch 클러스터의 Health Check 해주는 함수."]
     async fn get_health_info(&self) -> Result<Value, anyhow::Error> {
         let response: Response = self
-            .execute_on_any_node(|es_client| async move {
-                /* _cluster/health 요청 */
-                let response: Response = es_client
-                    .es_conn
-                    .cluster()
-                    .health(ClusterHealthParts::None)
-                    .send()
-                    .await?;
-
-                Ok(response)
-            })
+            .es_client
+            .cluster()
+            .health(ClusterHealthParts::None)
+            .send()
             .await?;
 
         if response.status_code().is_success() {
@@ -320,22 +306,16 @@ impl EsRepository for EsRepositoryImpl {
 
     #[doc = "Elasticsearch 각 노드들이 현재 문제 없이 통신이 되는지 체크해주는 함수."]
     /// # Returns
-    /// * Vec<(String, bool)> -
+    /// * Vec<(String, bool)> - 각 호스트별 연결 상태
     async fn get_node_conn_check(&self) -> Vec<(String, bool)> {
-        let futures = self.es_clients.iter().map(|es_obj| {
-            let es_host: String = es_obj.host.clone();
-            let es_pool: Elasticsearch = es_obj.es_conn.clone();
+        let mut results: Vec<(String, bool)> = Vec::new();
 
-            async move {
-                let response = es_pool.ping().send().await;
-                let is_success: bool =
-                    matches!(response, Ok(res) if res.status_code().is_success());
+        for host_info in &self.hosts_url_details {
+            let is_connected: bool = Self::check_single_node_connection(host_info.url.clone()).await;
+            results.push((host_info.host.clone(), is_connected));
+        }
 
-                (es_host, is_success)
-            }
-        });
-
-        join_all(futures).await
+        results
     }
 
     #[doc = "클러스터 각 노드의 metric value 를 반환해주는 함수."]
@@ -351,18 +331,17 @@ impl EsRepository for EsRepositoryImpl {
             NodesStatsParts::Metric(fields)
         };
 
-        let response: Response = self
-            .execute_on_any_node(|es_client| {
-                let stats_parts = stats_parts.clone();
-                async move {
-                    /* _nodes/stats 요청 */
-                    let response: Response =
-                        es_client.es_conn.nodes().stats(stats_parts).send().await?;
+        //왜ㅑ 비밀번호가 안들어가져있지?        
+        info!("es: {:?}", self.es_client);
 
-                    Ok(response)
-                }
-            })
-            .await?;
+        let response: Response = self
+            .es_client
+            .nodes()
+            .stats(stats_parts)
+            .send()
+            .await
+            .map_err(|e| anyhow!("[EsRepositoryImpl->get_node_stats] {:?}", e))?;
+
 
         if response.status_code().is_success() {
             let resp: Value = response.json().await?;
@@ -382,18 +361,12 @@ impl EsRepository for EsRepositoryImpl {
     ///
     /// # Returns
     /// * Result<Value, anyhow::Error>
-    async fn get_specific_index_info(&self, index_name: &str) -> Result<Value, anyhow::Error> {
+    async fn get_specific_index_info(&self, index_name: &str) -> anyhow::Result<Value> {
         let response: Response = self
-            .execute_on_any_node(|es_client| async move {
-                let response: Response = es_client
-                    .es_conn
-                    .indices()
-                    .stats(IndicesStatsParts::Index(&[index_name]))
-                    .send()
-                    .await?;
-
-                Ok(response)
-            })
+            .es_client
+            .indices()
+            .stats(IndicesStatsParts::Index(&[index_name]))
+            .send()
             .await?;
 
         if response.status_code().is_success() {
@@ -416,18 +389,11 @@ impl EsRepository for EsRepositoryImpl {
     /// * Result<Value, anyhow::Error>
     async fn get_cat_shards(&self, fields: &[&str]) -> Result<String, anyhow::Error> {
         let response: Response = self
-            .execute_on_any_node(|es_client| async move {
-                /* _nodes/stats 요청 */
-                let response: Response = es_client
-                    .es_conn
-                    .cat()
-                    .shards(CatShardsParts::None)
-                    .h(fields)
-                    .send()
-                    .await?;
-
-                Ok(response)
-            })
+            .es_client
+            .cat()
+            .shards(CatShardsParts::None)
+            .h(fields)
+            .send()
             .await?;
 
         if response.status_code().is_success() {
@@ -445,16 +411,10 @@ impl EsRepository for EsRepositoryImpl {
     #[doc = "GET /_cat/thread_pool"]
     async fn get_cat_thread_pool(&self) -> Result<String, anyhow::Error> {
         let response: Response = self
-            .execute_on_any_node(|es_client| async move {
-                let response: Response = es_client
-                    .es_conn
-                    .cat()
-                    .thread_pool(CatThreadPoolParts::None)
-                    .send()
-                    .await?;
-
-                Ok(response)
-            })
+            .es_client
+            .cat()
+            .thread_pool(CatThreadPoolParts::None)
+            .send()
             .await?;
 
         if response.status_code().is_success() {
@@ -477,25 +437,11 @@ impl EsRepository for EsRepositoryImpl {
     /// # Returns
     /// * Result<(), anyhow::Error>
     async fn post_doc(&self, index_name: &str, document: Value) -> Result<(), anyhow::Error> {
-        /* 클로저 내에서 사용할 복사본을 생성 */
-        let document_clone: Value = document.clone();
-
         let response: Response = self
-            .execute_on_any_node(|es_client| {
-                /* 클로저 내부에서 클론한 값 사용 */
-                let value: Value = document_clone.clone();
-
-                async move {
-                    let response: Response = es_client
-                        .es_conn
-                        .index(IndexParts::Index(index_name))
-                        .body(value)
-                        .send()
-                        .await?;
-
-                    Ok(response)
-                }
-            })
+            .es_client
+            .index(IndexParts::Index(index_name))
+            .body(document)
+            .send()
             .await?;
 
         if response.status_code().is_success() {
@@ -522,16 +468,10 @@ impl EsRepository for EsRepositoryImpl {
         index_name: &str,
     ) -> Result<Vec<T>, anyhow::Error> {
         let response: Response = self
-            .execute_on_any_node(|es_client| async move {
-                let response: Response = es_client
-                    .es_conn
-                    .search(SearchParts::Index(&[index_name]))
-                    .body(es_query)
-                    .send()
-                    .await?;
-
-                Ok(response)
-            })
+            .es_client
+            .search(SearchParts::Index(&[index_name]))
+            .body(es_query)
+            .send()
             .await?;
 
         if response.status_code().is_success() {
@@ -565,16 +505,10 @@ impl EsRepository for EsRepositoryImpl {
         index_name: &str,
     ) -> anyhow::Result<T> {
         let response: Response = self
-            .execute_on_any_node(|es_client| async move {
-                let response: Response = es_client
-                    .es_conn
-                    .search(SearchParts::Index(&[index_name]))
-                    .body(es_query)
-                    .send()
-                    .await?;
-
-                Ok(response)
-            })
+            .es_client
+            .search(SearchParts::Index(&[index_name]))
+            .body(es_query)
+            .send()
             .await?;
 
         if response.status_code().is_success() {
@@ -598,16 +532,10 @@ impl EsRepository for EsRepositoryImpl {
     /// * Result<u64, anyhow::Error> - 문서 개수
     async fn get_count_query(&self, es_query: &Value, index_name: &str) -> anyhow::Result<u64> {
         let response: Response = self
-            .execute_on_any_node(|es_client| async move {
-                let response: Response = es_client
-                    .es_conn
-                    .count(CountParts::Index(&[index_name]))
-                    .body(es_query)
-                    .send()
-                    .await?;
-
-                Ok(response)
-            })
+            .es_client
+            .count(CountParts::Index(&[index_name]))
+            .body(es_query)
+            .send()
             .await?;
 
         if response.status_code().is_success() {
@@ -632,13 +560,7 @@ impl EsRepository for EsRepositoryImpl {
 
     #[doc = "Cluster 내의 모든 호스트들을 반환해주는 함수."]
     fn get_cluster_all_host_infos(&self) -> Vec<String> {
-        let mut hosts: Vec<String> = Vec::new();
-
-        self.es_clients.iter().for_each(|es_client| {
-            hosts.push(es_client.host.clone());
-        });
-
-        hosts
+        self.hosts.clone()
     }
 
     #[doc = "Cluster 정보를 맵핑해줄 index pattern 형식을 반환."]

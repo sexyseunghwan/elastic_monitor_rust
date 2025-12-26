@@ -31,10 +31,11 @@ pub use reqwest::Client;
 pub use futures::{StreamExt, TryStreamExt};
 
 pub use elasticsearch::{
+    auth::Credentials as EsCredentials,
     cat::{CatIndicesParts, CatShardsParts, CatThreadPoolParts},
     cluster::ClusterHealthParts,
     http::response::Response,
-    http::transport::{SingleNodeConnectionPool, Transport as EsTransport, TransportBuilder},
+    http::transport::{MultiNodeConnectionPool, Transport as EsTransport, TransportBuilder},
     http::Url,
     indices::IndicesStatsParts,
     nodes::NodesStatsParts,
@@ -43,7 +44,7 @@ pub use elasticsearch::{
 
 pub use tiberius::Row;
 
-pub use rand::{prelude::IndexedRandom, prelude::ThreadRng, seq::SliceRandom, Rng};
+pub use rand::{prelude::IndexedRandom, prelude::ThreadRng, Rng};
 
 pub use anyhow::{anyhow, Context};
 

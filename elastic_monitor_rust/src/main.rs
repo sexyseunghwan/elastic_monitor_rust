@@ -39,7 +39,7 @@ History     : 2024-10-02 Seunghwan Shin       # [v.1.0.0] first create
                                                 1) 리눅스 호환가능하도록 변경
                                                 2) 개발계에서 문제가 생길경우에는 단독 메일만 보내도록 처리
               2025-09-11 Seunghwan Shin       # [v.2.2.0] 모니터링 전용 ES 에 메트릭 수집하는 방식으로 코드 변경
-              2025-12-00 Seunghwan Shin       # [v.3.0.0]
+              2025-12-00 Seunghwan Shin       # [v.3.0.0] Added the monitoring report feature
 */
 mod common;
 use common::*;
@@ -77,7 +77,7 @@ async fn main() {
 
     info!("Start Elasticsearch Monitoring Program");
 
-    /* 대상 Elasticsearch DB 커넥션 정보 리스트 */
+    /* List of Elasticsearch DB connection information for ***monitoring targets*** */
     let es_infos_vec: Vec<EsRepositoryImpl> = initialize_db_clients().unwrap_or_else(|e| {
         error!(
             "[main()] Unable to retrieve 'Elasticsearch' connection information.: {:?}",
@@ -88,7 +88,7 @@ async fn main() {
             e
         )
     });
-
+    
     /*
         Shared services (stateless or immutable config)
         These services can be safely shared across all clusters
@@ -96,23 +96,24 @@ async fn main() {
     let chart_service: Arc<ChartServiceImpl> = Arc::new(ChartServiceImpl::new());
     let notification_service: Arc<NotificationServiceImpl> =
         Arc::new(NotificationServiceImpl::new());
-
+    
     /*
-        Handler Dependency Injection
+        Handler Dependency Injection(DI)
         Since multiple clusters can be monitored simultaneously,
         dependency injection is performed for each cluster.
     */
     for cluster in es_infos_vec {
+        
         let metric_service: Arc<MetricServiceImpl<EsRepositoryImpl>> =
             Arc::new(MetricServiceImpl::new(cluster));
-
+        
         let monitoring_service: Arc<
             MonitoringServiceImpl<MetricServiceImpl<EsRepositoryImpl>, NotificationServiceImpl>,
         > = Arc::new(MonitoringServiceImpl::new(
             Arc::clone(&metric_service),
             Arc::clone(&notification_service),
         ));
-
+        
         let report_service: Arc<
             ReportServiceImpl<
                 MetricServiceImpl<EsRepositoryImpl>,

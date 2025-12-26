@@ -1,3 +1,5 @@
+use lettre::error;
+
 use crate::common::*;
 
 use crate::utils_modules::calculate_utils::*;
@@ -36,21 +38,29 @@ impl<R: EsRepository> MetricServiceImpl<R> {
 
 /* private function 선언부 */
 impl<R: EsRepository + Sync + Send> MetricServiceImpl<R> {
-    #[doc = "인덱스 뒤에 금일 날짜를 추가해주는 함수"]
+    
+    #[doc = "Function that adds today's date after the index."]
     /// # Arguments
-    /// * `index_name` - 인덱스 이름
-    /// * `dt` - 날짜 타입
+    /// * `index_name` - name of index
+    /// * `dt` - 
     ///
     /// # Returns
-    /// * Result<String, anyhow::Error>
-    fn get_today_index_name(
-        &self,
-        index_name: &str,
-        dt: NaiveDateTime,
-    ) -> Result<String, anyhow::Error> {
-        let date: String = get_str_from_naivedatetime(dt, "%Y%m%d")?;
-        Ok(format!("{}{}", index_name, date))
+    /// * String
+    // fn get_today_index_name(
+    //     &self,
+    //     index_name: &str,
+    //     dt: NaiveDateTime,
+    // ) -> Result<String, anyhow::Error> {
+    //     let date: String = get_str_from_naivedatetime(dt, "%Y%m%d")?;
+    //     Ok(format!("{}{}", index_name, date))
+    // }
+    fn get_today_index_name(&self, index_name: &str, dt: DateTime<Utc>) -> String {
+
+        let today_date_str: String = convert_date_to_str_ymd(dt, Utc);
+        let index_name: String = format!("{}{}", index_name, today_date_str);
+        index_name
     }
+
 
     #[doc = "breaker 모니터링 정보를 수집해주기 위한 함수"]
     /// # Arguments
@@ -217,7 +227,7 @@ impl<R: EsRepository + Sync + Send> MetricServiceImpl<R> {
 }
 
 #[async_trait]
-impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
+impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricServiceImpl<R> {
     #[doc = "현재 cluster 의 이름을 반환해주는 함수"]
     fn get_cluster_name(&self) -> String {
         self.elastic_obj.get_cluster_name()
@@ -228,7 +238,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
         self.elastic_obj.get_cluster_all_host_infos()
     }
 
-    #[doc = "Elasticsearch 클러스터 내의 각 노드의 상태를 체크해주는 함수"]
+    #[doc = "Function thath checkts the status of each node within an Elasticsearch cluster"]
     async fn get_cluster_node_check(&self) -> Result<Vec<String>, anyhow::Error> {
         /* Vec<(host 주소, 연결 유무)> */
         let conn_stats: Vec<(String, bool)> = self.elastic_obj.get_node_conn_check().await;
@@ -252,6 +262,8 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
     #[doc = "Cluster 의 상태를 반환해주는 함수 -> green, yellow, red"]
     async fn get_cluster_health_check(&self) -> Result<String, anyhow::Error> {
         /* 클러스터 상태 체크 */
+        info!("why?= {:?}", self.elastic_obj);
+        
         let cluster_status_json: Value = self.elastic_obj.get_health_info().await?;
 
         let cluster_status: String = cluster_status_json.get("status")
@@ -421,6 +433,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
                 let breaker_request: BreakerInfo = self.get_breaker_info(node_info, "request")?;
                 let breaker_fielddata: BreakerInfo =
                     self.get_breaker_info(node_info, "fielddata")?;
+                
                 /* 8.x 버전 */
                 let breaker_inflight_requests: BreakerInfo =
                     self.get_breaker_info(node_info, "inflight_requests")?;
@@ -507,6 +520,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
         index_name: &str,
         cur_utc_time_str: &str,
     ) -> Result<IndexMetricInfo, anyhow::Error> {
+
         let get_index_stats: Value = self.elastic_obj.get_specific_index_info(index_name).await?;
 
         if let Some(total_stats) = get_index_stats.get("_all") {
@@ -677,8 +691,8 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
         /* 지표를 저장해줄 인스턴스 벡터. */
         let mut metric_vec: Vec<MetricInfo> = Vec::new();
 
-        let now: NaiveDateTime = get_currnet_utc_naivedatetime();
-        let now_str: String = format_datetime(now)?;
+        let now: DateTime<Utc> = Utc::now();
+        let now_str: String = convert_date_to_str_full(now, Utc);
 
         /* Monitoring Elasticsearch object information (including connections) */
         let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
@@ -691,7 +705,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
             })?;
 
         /* 날짜 기준으로 인덱스 이름 맵핑 */
-        let index_name: String = self.get_today_index_name(&cluster_index_pattern, now)?;
+        let index_name: String = self.get_today_index_name(&cluster_index_pattern, now);
 
         /* 1. GET /_nodes/stats */
         self.get_nodes_stats_handle(&mut metric_vec, &now_str)
@@ -718,8 +732,8 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
     async fn post_cluster_index_infos(&self) -> Result<(), anyhow::Error> {
         let cluster_name: String = self.elastic_obj.get_cluster_name();
 
-        let now: NaiveDateTime = get_currnet_utc_naivedatetime();
-        let now_str: String = format_datetime(now)?;
+        let now: DateTime<Utc> = Utc::now();
+        let now_str: String = convert_date_to_str_full(now, Utc);
 
         let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
 
@@ -728,7 +742,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
             .ok_or_else(|| anyhow!("[MetricServiceImpl->post_cluster_index_infos] cluster_index_monitor_pattern is empty"))?;
 
         /* 인덱스 이름 생성 */
-        let index_name: String = self.get_today_index_name(&cluster_index_monitor_pattern, now)?;
+        let index_name: String = self.get_today_index_name(&cluster_index_monitor_pattern, now);
 
         let monitor_indexies: IndexConfig =
             read_toml_from_file::<IndexConfig>(&ELASTIC_INDEX_INFO_PATH)?;
@@ -764,7 +778,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
 
     #[doc = "긴급한 지표를 모니터링한 후 반환해주는 함수"]
     async fn get_alarm_urgent_infos(&self) -> Result<Vec<UrgentAlarmInfo>, anyhow::Error> {
-        let (now, _past, now_str, past_str) = make_time_range(20)?;
+        let (now, _past, now_str, past_str) = make_time_range(20);
 
         let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
 
@@ -773,7 +787,7 @@ impl<R: EsRepository + Sync + Send> MetricService for MetricServiceImpl<R> {
             .ok_or_else(|| anyhow!("[MetricServiceImpl->get_alarm_urgent_infos] cluster_index_monitor_pattern is empty"))?;
 
         /* 인덱스 이름 생성 */
-        let index_name: String = self.get_today_index_name(&cluster_index_urgent_pattern, now)?;
+        let index_name: String = self.get_today_index_name(&cluster_index_urgent_pattern, now);
 
         /* 긴급 모니터링 구성 로딩 */
         let urgent_configs: UrgentConfigList =

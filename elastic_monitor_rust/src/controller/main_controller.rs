@@ -45,22 +45,22 @@ where
         let yearly_enabled: bool = get_yearly_report_config_info().enabled;
 
         /* 1. Daily report task */
-        // let daily_report_handle = Self::spawn_report_task(
-        //     Arc::clone(&self.report_service),
-        //     ReportType::Day,
-        //     "daily_report_task",
-        //     daily_enabled,
-        //     &cluster_name,
-        // );
+        let daily_report_handle = Self::spawn_report_task(
+            Arc::clone(&self.report_service),
+            ReportType::Day,
+            "daily_report_task",
+            daily_enabled,
+            &cluster_name,
+        );
 
-        // /* 2. Weekly report task */
-        // let weekly_report_handle = Self::spawn_report_task(
-        //     Arc::clone(&self.report_service),
-        //     ReportType::Week,
-        //     "weekly_report_task",
-        //     weekly_enabled,
-        //     &cluster_name,
-        // );
+        /* 2. Weekly report task */
+        let weekly_report_handle = Self::spawn_report_task(
+            Arc::clone(&self.report_service),
+            ReportType::Week,
+            "weekly_report_task",
+            weekly_enabled,
+            &cluster_name,
+        );
 
         /* 3. Monthly report task */
         let monthly_report_handle = Self::spawn_report_task(
@@ -72,25 +72,23 @@ where
         );
 
         /* 4. Yearly report task */
-        // let yearly_report_handle = Self::spawn_report_task(
-        //     Arc::clone(&self.report_service),
-        //     ReportType::Year,
-        //     "yearly_report_task",
-        //     yearly_enabled,
-        //     &cluster_name,
-        // );
+        let yearly_report_handle = Self::spawn_report_task(
+            Arc::clone(&self.report_service),
+            ReportType::Year,
+            "yearly_report_task",
+            yearly_enabled,
+            &cluster_name,
+        );
 
         /* Run all tasks in parallel and wait for termination */
-        // let _ = tokio::join!(
-        //     monitoring_handle,
-        //     daily_report_handle,
-        //     weekly_report_handle,
-        //     monthly_report_handle,
-        //     yearly_report_handle
-        // );
-
-        let _ = tokio::join!(monitoring_handle, monthly_report_handle);
-
+        let _ = tokio::join!(
+            monitoring_handle,
+            daily_report_handle,
+            weekly_report_handle,
+            monthly_report_handle,
+            yearly_report_handle
+        );
+        
         Ok(())
     }
 

@@ -45,6 +45,7 @@ impl ChartService for ChartServiceImpl {
         x_label: &str,
         y_label: &str,
     ) -> anyhow::Result<()> {
+        
         if x_labels.len() != y_data.len() {
             return Err(anyhow!(
                 "[ChartServiceImpl->generate_line_chart] X labels and Y data must have the same length: {} vs {}",

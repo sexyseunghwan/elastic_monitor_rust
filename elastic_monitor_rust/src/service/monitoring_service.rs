@@ -26,6 +26,7 @@ where
     #[doc = "Function that checks whether each node in the cluster has connectivity issues 
              and sends an alarm if problems are detected"]
     async fn cluster_nodes_check(&self) -> Result<(), anyhow::Error> {
+        
         let fail_hosts: Vec<String> = self.metric_service.get_cluster_node_check().await?;
 
         if !fail_hosts.is_empty() {
@@ -92,6 +93,7 @@ where
             }
         }
 
+        /* Pending... */
         /* 모니터링 할 인덱스 metric value 를 서버로 Post -> 당분간 안쓰는 기능 -> 특정 인덱스별로 모니터링 진행함 */
         // match self.metric_service.post_cluster_index_infos().await {
         //     Ok(_) => (),
@@ -143,13 +145,16 @@ where
 {
     #[doc = ""]
     async fn monitoring_loop(&self) -> anyhow::Result<()> {
+        
         loop {
-            if let Err(e) = self.cluster_nodes_check().await {
-                error!(
-                    "[MonitoringServiceImpl->monitoring_loop] cluster_nodes_check() error: {:?}",
-                    e
-                );
-            }
+            
+            // 애는 이상 없음
+            // if let Err(e) = self.cluster_nodes_check().await {
+            //     error!(
+            //         "[MonitoringServiceImpl->monitoring_loop] cluster_nodes_check() error: {:?}",
+            //         e
+            //     );
+            // }
 
             if let Err(e) = self.cluster_health_check().await {
                 error!(
@@ -158,16 +163,16 @@ where
                 );
             }
 
-            if let Err(e) = self.input_es_metric_infos().await {
-                error!(
-                    "[MonitoringServiceImpl->monitoring_loop] input_es_metric_infos() error: {:?}",
-                    e
-                );
-            }
+            // if let Err(e) = self.input_es_metric_infos().await {
+            //     error!(
+            //         "[MonitoringServiceImpl->monitoring_loop] input_es_metric_infos() error: {:?}",
+            //         e
+            //     );
+            // }
 
-            if let Err(e) = self.send_alarm_urgent_infos().await {
-                error!("[MonitoringServiceImpl->monitoring_loop] send_alarm_urgent_infos() error: {:?}", e);
-            }
+            // if let Err(e) = self.send_alarm_urgent_infos().await {
+            //     error!("[MonitoringServiceImpl->monitoring_loop] send_alarm_urgent_infos() error: {:?}", e);
+            // }
 
             std_sleep(Duration::from_secs(10));
         }

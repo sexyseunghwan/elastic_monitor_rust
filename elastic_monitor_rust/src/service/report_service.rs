@@ -363,10 +363,6 @@ where
             &report_img_path_str, cluster_name, cur_local_time_str, random_6_digit
         ));
 
-        for elem in err_agg_hist_list {
-            println!("{:?}", elem);
-        }
-
         let x_axis: Vec<String> = err_agg_hist_list
             .iter()
             .map(|eb| convert_date_to_str_full(eb.date_at, Local))
@@ -494,6 +490,7 @@ where
 {
     #[doc = "Function that provides a report service"]
     async fn report_loop(&self, report_type: ReportType, cluster_name: &str) -> anyhow::Result<()> {
+        
         let report_config: ReportConfig = match report_type {
             ReportType::Day => get_daily_report_config_info().clone(),
             ReportType::Week => get_weekly_report_config_info().clone(),
