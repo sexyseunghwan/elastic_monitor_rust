@@ -12,7 +12,7 @@ use crate::env_configuration::env_config::*;
 use crate::utils_modules::io_utils::*;
 
 use crate::model::{
-    configs::{config::*, smtp_config::*, use_case_config::*},
+    configs::{config::*, smtp_config::*},
     message_formatter_dto::message_formatter::*,
     receiver_email_list::*,
 };
@@ -57,42 +57,6 @@ impl NotificationServiceImpl {
         Ok(())
     }
 
-    // #[doc = "Function that propagates issues via I-Mailer - for isolated networks"]
-    // #[allow(dead_code)]
-    // async fn send_alarm_to_imailer<T: MessageFormatter + Sync + Send>(&self, msg_fmt: &T) -> Result<(), anyhow::Error> {
-
-    //     let email_format: HtmlContents = msg_fmt.get_email_format();
-    //     let sql_server_repo: Arc<SqlServerRepositoryPub> = get_sql_server_repo();
-
-    //     /* html 파일 읽기 */
-    //     let mut html_template: String = std::fs::read_to_string(&email_format.view_page_dir)?;
-
-    //     /* 읽은 html을 기준으로 데이터 치환 */
-    //     for (key, value) in &email_format.html_form_map {
-    //         html_template = html_template.replace(&format!("{{{}}}", key), value)
-    //     }
-
-    //     let mail_subject: &str = "[Elasticsearch] Error Alert";
-
-    //     for email in self.email_list().receivers() {
-
-    //         match sql_server_repo.execute_imailer_procedure(email.email_id(), mail_subject, &html_template).await {
-    //             Ok(_) => {
-    //                 info!("Successfully sent email to {}", email.email_id());
-    //             },
-    //             Err(e) => {
-    //                 error!(
-    //                     "[NotificationServiceImpl->send_alarm_to_imailer] Failed to send mail to {} : {:?}",
-    //                     email.email_id(),
-    //                     e
-    //                 )
-    //             }
-    //         }
-    //     }
-
-    //     Ok(())
-    // }
-
     #[doc = "Function that propagates issues via I-Mailer - for isolated networks"]
     async fn send_alarm_to_imailer(
         &self,
@@ -104,7 +68,7 @@ impl NotificationServiceImpl {
 
         for email in receiver_email_list.receivers() {
             match sql_server_repo
-                .execute_imailer_procedure(email.email_id(), email_subject, &html_content)
+                .execute_imailer_procedure(email.email_id(), email_subject, html_content)
                 .await
             {
                 Ok(_) => {
@@ -307,6 +271,7 @@ impl NotificationServiceImpl {
 
 #[async_trait]
 impl NotificationService for NotificationServiceImpl {
+    
     #[doc = ""]
     async fn send_alarm_infos<T: MessageFormatter + Sync + Send>(
         &self,

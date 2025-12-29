@@ -1,7 +1,7 @@
 use crate::common::*;
 
 use crate::model::{
-    index_metric_info::*, message_formatter_dto::message_formatter_urgent::*,
+    message_formatter_dto::message_formatter_urgent::*,
     monitoring::metric_info::*, search_indicies::*,
 };
 
@@ -20,11 +20,6 @@ pub trait MetricService {
         metric_vec: &mut Vec<MetricInfo>,
         cur_utc_time_str: &str,
     ) -> Result<(), anyhow::Error>;
-    async fn get_index_stats_handle(
-        &self,
-        index_name: &str,
-        cur_utc_time_str: &str,
-    ) -> Result<IndexMetricInfo, anyhow::Error>;
     async fn get_cat_shards_handle(
         &self,
         metric_vec: &mut Vec<MetricInfo>,
@@ -34,7 +29,7 @@ pub trait MetricService {
         metric_vec: &mut Vec<MetricInfo>,
     ) -> Result<(), anyhow::Error>;
     async fn post_cluster_nodes_infos(&self) -> Result<(), anyhow::Error>;
-    async fn post_cluster_index_infos(&self) -> Result<(), anyhow::Error>;
+    // async fn post_cluster_index_infos(&self) -> Result<(), anyhow::Error>;
     async fn get_alarm_urgent_infos(&self) -> Result<Vec<UrgentAlarmInfo>, anyhow::Error>;
     async fn put_node_conn_err_infos(
         &self,

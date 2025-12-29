@@ -57,9 +57,7 @@ pub use async_trait::async_trait;
 
 pub use once_cell::sync::Lazy as once_lazy;
 
-pub use chrono::{
-    DateTime, Duration as ChronoDuration, FixedOffset, Local, Months, NaiveDateTime, TimeZone, Utc,
-};
+pub use chrono::{DateTime, Duration as ChronoDuration, Local, Months, TimeZone, Utc};
 
 pub use lettre::{
     message::{MultiPart, SinglePart},

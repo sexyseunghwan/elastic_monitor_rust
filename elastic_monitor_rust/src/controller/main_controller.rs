@@ -1,19 +1,10 @@
-use cron::error;
-
 use crate::common::*;
 
 use crate::traits::service::{
-    metric_service_trait::*, monitoring_service_trait::*, notification_service_trait::*,
-    report_service_trait::*,
+    monitoring_service_trait::*, report_service_trait::*,
 };
 
-use crate::model::{
-    configs::{config::*, report_config::*},
-    message_formatter_dto::{
-        message_formatter_index::*, message_formatter_node::*, message_formatter_urgent::*,
-    },
-    search_indicies::*,
-};
+use crate::model::configs::config::*;
 
 use crate::enums::report_type::*;
 
@@ -88,7 +79,7 @@ where
             monthly_report_handle,
             yearly_report_handle
         );
-        
+
         Ok(())
     }
 

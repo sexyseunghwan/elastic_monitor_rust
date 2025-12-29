@@ -29,10 +29,10 @@ pub fn get_telegram_config_info() -> &'static TelegramConfig {
     &SERVER_CONFIG.telegram
 }
 
-#[doc = "Information of Usecase configuration"]
-pub fn get_usecase_config_info() -> &'static UseCaseConfig {
-    &SERVER_CONFIG.usecase
-}
+// #[doc = "Information of Usecase configuration"]
+// pub fn get_usecase_config_info() -> &'static UseCaseConfig {
+//     &SERVER_CONFIG.usecase
+// }
 
 #[doc = "Information of Elasticsearch configuration"]
 pub fn get_mon_es_config_info() -> &'static MonElasticConfig {

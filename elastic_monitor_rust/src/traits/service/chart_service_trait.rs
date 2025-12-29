@@ -13,6 +13,6 @@ pub trait ChartService {
     ) -> anyhow::Result<()>;
     async fn convert_images_to_base64_html(
         &self,
-        alarm_image_path: PathBuf,
+        alarm_image_path: &PathBuf,
     ) -> anyhow::Result<String>;
 }

@@ -45,7 +45,6 @@ impl ChartService for ChartServiceImpl {
         x_label: &str,
         y_label: &str,
     ) -> anyhow::Result<()> {
-        
         if x_labels.len() != y_data.len() {
             return Err(anyhow!(
                 "[ChartServiceImpl->generate_line_chart] X labels and Y data must have the same length: {} vs {}",
@@ -165,7 +164,7 @@ impl ChartService for ChartServiceImpl {
     "#]
     async fn convert_images_to_base64_html(
         &self,
-        alarm_image_path: PathBuf,
+        alarm_image_path: &PathBuf,
     ) -> anyhow::Result<String> {
         use base64::{engine::general_purpose, Engine as _};
 

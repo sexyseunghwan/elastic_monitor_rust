@@ -96,24 +96,23 @@ async fn main() {
     let chart_service: Arc<ChartServiceImpl> = Arc::new(ChartServiceImpl::new());
     let notification_service: Arc<NotificationServiceImpl> =
         Arc::new(NotificationServiceImpl::new());
-    
+
     /*
         Handler Dependency Injection(DI)
         Since multiple clusters can be monitored simultaneously,
         dependency injection is performed for each cluster.
     */
     for cluster in es_infos_vec {
-        
         let metric_service: Arc<MetricServiceImpl<EsRepositoryImpl>> =
             Arc::new(MetricServiceImpl::new(cluster));
-        
+
         let monitoring_service: Arc<
             MonitoringServiceImpl<MetricServiceImpl<EsRepositoryImpl>, NotificationServiceImpl>,
         > = Arc::new(MonitoringServiceImpl::new(
             Arc::clone(&metric_service),
             Arc::clone(&notification_service),
         ));
-        
+
         let report_service: Arc<
             ReportServiceImpl<
                 MetricServiceImpl<EsRepositoryImpl>,

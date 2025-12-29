@@ -28,7 +28,7 @@ pub struct DateHistogramAggregation {
 #[derive(Debug, Deserialize)]
 pub struct DateHistogramBucket {
     pub key_as_string: Option<String>,
-    pub key: i64,
+    pub _key: i64,
     pub doc_count: i64,
 }
 

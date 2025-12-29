@@ -1,5 +1,3 @@
-use lettre::error;
-
 use crate::common::*;
 
 use crate::utils_modules::calculate_utils::*;
@@ -7,9 +5,7 @@ use crate::utils_modules::io_utils::*;
 use crate::utils_modules::json_utils::*;
 use crate::utils_modules::time_utils::*;
 
-use crate::model::index_config::*;
-use crate::model::index_info::*;
-use crate::model::index_metric_info::*;
+
 use crate::model::message_formatter_dto::message_formatter_urgent::*;
 use crate::model::monitoring::{breaker_info::*, metric_info::*, segment_info::*};
 use crate::model::reports::err_log_info::*;
@@ -19,6 +15,7 @@ use crate::model::urgent_dto::urgent_config::*;
 use crate::model::urgent_dto::urgent_info::*;
 
 use crate::repository::es_repository::*;
+use crate::repository::mon_es_repository::*;
 
 use crate::env_configuration::env_config::*;
 
@@ -38,11 +35,10 @@ impl<R: EsRepository> MetricServiceImpl<R> {
 
 /* private function 선언부 */
 impl<R: EsRepository + Sync + Send> MetricServiceImpl<R> {
-    
     #[doc = "Function that adds today's date after the index."]
     /// # Arguments
     /// * `index_name` - name of index
-    /// * `dt` - 
+    /// * `dt` -
     ///
     /// # Returns
     /// * String
@@ -55,12 +51,10 @@ impl<R: EsRepository + Sync + Send> MetricServiceImpl<R> {
     //     Ok(format!("{}{}", index_name, date))
     // }
     fn get_today_index_name(&self, index_name: &str, dt: DateTime<Utc>) -> String {
-
         let today_date_str: String = convert_date_to_str_ymd(dt, Utc);
         let index_name: String = format!("{}{}", index_name, today_date_str);
         index_name
     }
-
 
     #[doc = "breaker 모니터링 정보를 수집해주기 위한 함수"]
     /// # Arguments
@@ -224,6 +218,105 @@ impl<R: EsRepository + Sync + Send> MetricServiceImpl<R> {
 
         Ok(())
     }
+
+    // #[doc = "GET /{index_name}/stats 정보들을 핸들링 해주는 함수"]
+    // /// # Arguments
+    // /// * `index_name`          - 인덱스 이름
+    // /// * `cur_utc_time_str`    - 현재시간 (문자열)
+    // ///
+    // /// # Returns
+    // /// * Result<IndexMetricInfo, anyhow::Error>
+    // async fn get_index_stats_handle(
+    //     &self,
+    //     index_name: &str,
+    //     cur_utc_time_str: &str,
+    // ) -> Result<IndexMetricInfo, anyhow::Error> {
+    //     let get_index_stats: Value = self.elastic_obj.get_specific_index_info(index_name).await?;
+
+    //     if let Some(total_stats) = get_index_stats.get("_all") {
+    //         let translog_operation: i64 =
+    //             get_value_by_path(total_stats, "total.translog.operations")?;
+    //         let translog_operation_size: i64 =
+    //             get_value_by_path(total_stats, "total.translog.size_in_bytes")?;
+    //         let translog_uncommited_operation: i64 =
+    //             get_value_by_path(total_stats, "total.translog.uncommitted_operations")?;
+    //         let translog_uncommited_operation_size: i64 =
+    //             get_value_by_path(total_stats, "total.translog.uncommitted_size_in_bytes")?;
+
+    //         let flush_total: i64 = get_value_by_path(total_stats, "total.flush.total")?;
+
+    //         let refresh_total: i64 = get_value_by_path(total_stats, "total.refresh.total")?;
+    //         let refresh_listener: i64 = get_value_by_path(total_stats, "total.refresh.listeners")?;
+
+    //         let index_metric_info: IndexMetricInfo = IndexMetricInfo::new(
+    //             cur_utc_time_str.to_string(),
+    //             index_name.to_string(),
+    //             translog_operation,
+    //             translog_operation_size,
+    //             translog_uncommited_operation,
+    //             translog_uncommited_operation_size,
+    //             flush_total,
+    //             refresh_total,
+    //             refresh_listener,
+    //         );
+
+    //         Ok(index_metric_info)
+    //     } else {
+    //         Err(anyhow!(
+    //             "[MetricService->get_index_stats_handle] No _all.total section in stats response"
+    //         ))
+    //     }
+    // }
+
+
+    // #[doc = "모니터링 대상이 되는 index의 개별 정보를 elasticsearch 에 적재하는 함수"]
+    // async fn post_cluster_index_infos(&self) -> Result<(), anyhow::Error> {
+    //     let cluster_name: String = self.elastic_obj.get_cluster_name();
+
+    //     let now: DateTime<Utc> = Utc::now();
+    //     let now_str: String = convert_date_to_str_full(now, Utc);
+
+    //     let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
+
+    //     let cluster_index_monitor_pattern: String = mon_es
+    //         .get_cluster_index_monitoring_pattern()
+    //         .ok_or_else(|| anyhow!("[MetricServiceImpl->post_cluster_index_infos] cluster_index_monitor_pattern is empty"))?;
+
+    //     /* 인덱스 이름 생성 */
+    //     let index_name: String = self.get_today_index_name(&cluster_index_monitor_pattern, now);
+
+    //     let monitor_indexies: IndexConfig =
+    //         read_toml_from_file::<IndexConfig>(&ELASTIC_INDEX_INFO_PATH)?;
+
+    //     let index_vec: Vec<IndexInfo> = monitor_indexies
+    //         .index
+    //         .into_iter()
+    //         .filter(|elem| *elem.cluster_name() == cluster_name)
+    //         .collect();
+
+    //     for elem in index_vec {
+    //         /* You should also consider cases where a specific index is NOT currently present in Elasticsearch DB */
+    //         let index_metric_info: IndexMetricInfo = match self
+    //             .get_index_stats_handle(elem.index_name(), &now_str)
+    //             .await
+    //         {
+    //             Ok(index_metric_info) => index_metric_info,
+    //             Err(e) => {
+    //                 error!("[MetricServiceImpl->post_cluster_index_infos] {:?}", e);
+    //                 continue;
+    //             }
+    //         };
+
+    //         let document: Value = serde_json::to_value(&index_metric_info)?;
+
+    //         if let Err(e) = mon_es.post_doc(&index_name, document).await {
+    //             error!("[MetricServiceImpl->post_cluster_index_infos] {:?}", e)
+    //         }
+    //     }
+
+    //     Ok(())
+    // }
+
 }
 
 #[async_trait]
@@ -262,8 +355,6 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
     #[doc = "Cluster 의 상태를 반환해주는 함수 -> green, yellow, red"]
     async fn get_cluster_health_check(&self) -> Result<String, anyhow::Error> {
         /* 클러스터 상태 체크 */
-        info!("why?= {:?}", self.elastic_obj);
-        
         let cluster_status_json: Value = self.elastic_obj.get_health_info().await?;
 
         let cluster_status: String = cluster_status_json.get("status")
@@ -293,7 +384,9 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
                 _ => continue,
             };
 
+            /* prod version */
             let is_unstable: bool = *health != "green" || *status != "open";
+
             /* Test Version */
             //let is_unstable: bool = *health == "green" || *status == "open";
 
@@ -433,7 +526,7 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
                 let breaker_request: BreakerInfo = self.get_breaker_info(node_info, "request")?;
                 let breaker_fielddata: BreakerInfo =
                     self.get_breaker_info(node_info, "fielddata")?;
-                
+
                 /* 8.x 버전 */
                 let breaker_inflight_requests: BreakerInfo =
                     self.get_breaker_info(node_info, "inflight_requests")?;
@@ -506,56 +599,6 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
         }
 
         Ok(())
-    }
-
-    #[doc = "GET /{index_name}/stats 정보들을 핸들링 해주는 함수"]
-    /// # Arguments
-    /// * `index_name`          - 인덱스 이름
-    /// * `cur_utc_time_str`    - 현재시간 (문자열)
-    ///
-    /// # Returns
-    /// * Result<IndexMetricInfo, anyhow::Error>
-    async fn get_index_stats_handle(
-        &self,
-        index_name: &str,
-        cur_utc_time_str: &str,
-    ) -> Result<IndexMetricInfo, anyhow::Error> {
-
-        let get_index_stats: Value = self.elastic_obj.get_specific_index_info(index_name).await?;
-
-        if let Some(total_stats) = get_index_stats.get("_all") {
-            let translog_operation: i64 =
-                get_value_by_path(total_stats, "total.translog.operations")?;
-            let translog_operation_size: i64 =
-                get_value_by_path(total_stats, "total.translog.size_in_bytes")?;
-            let translog_uncommited_operation: i64 =
-                get_value_by_path(total_stats, "total.translog.uncommitted_operations")?;
-            let translog_uncommited_operation_size: i64 =
-                get_value_by_path(total_stats, "total.translog.uncommitted_size_in_bytes")?;
-
-            let flush_total: i64 = get_value_by_path(total_stats, "total.flush.total")?;
-
-            let refresh_total: i64 = get_value_by_path(total_stats, "total.refresh.total")?;
-            let refresh_listener: i64 = get_value_by_path(total_stats, "total.refresh.listeners")?;
-
-            let index_metric_info: IndexMetricInfo = IndexMetricInfo::new(
-                cur_utc_time_str.to_string(),
-                index_name.to_string(),
-                translog_operation,
-                translog_operation_size,
-                translog_uncommited_operation,
-                translog_uncommited_operation_size,
-                flush_total,
-                refresh_total,
-                refresh_listener,
-            );
-
-            Ok(index_metric_info)
-        } else {
-            Err(anyhow!(
-                "[MetricService->get_index_stats_handle] No _all.total section in stats response"
-            ))
-        }
     }
 
     #[doc = "GET /_cat/shards 정보들을 핸들링 해주는 함수"]
@@ -686,9 +729,9 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
         Ok(())
     }
 
-    #[doc = "각 cluster node 들의 정보를 elasticsearch 에 적재하는 함수"]
+    #[doc = "Function for loading information from each cluster node into Elasticsearch"]
     async fn post_cluster_nodes_infos(&self) -> Result<(), anyhow::Error> {
-        /* 지표를 저장해줄 인스턴스 벡터. */
+        /* An instance vector to store the indicators. */
         let mut metric_vec: Vec<MetricInfo> = Vec::new();
 
         let now: DateTime<Utc> = Utc::now();
@@ -722,54 +765,6 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
 
             if let Err(e) = mon_es.post_doc(&index_name, document).await {
                 error!("[MetricServiceImpl->post_cluster_nodes_infos] {:?}", e);
-            }
-        }
-
-        Ok(())
-    }
-
-    #[doc = "모니터링 대상이 되는 index의 개별 정보를 elasticsearch 에 적재하는 함수"]
-    async fn post_cluster_index_infos(&self) -> Result<(), anyhow::Error> {
-        let cluster_name: String = self.elastic_obj.get_cluster_name();
-
-        let now: DateTime<Utc> = Utc::now();
-        let now_str: String = convert_date_to_str_full(now, Utc);
-
-        let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
-
-        let cluster_index_monitor_pattern: String = mon_es
-            .get_cluster_index_monitoring_pattern()
-            .ok_or_else(|| anyhow!("[MetricServiceImpl->post_cluster_index_infos] cluster_index_monitor_pattern is empty"))?;
-
-        /* 인덱스 이름 생성 */
-        let index_name: String = self.get_today_index_name(&cluster_index_monitor_pattern, now);
-
-        let monitor_indexies: IndexConfig =
-            read_toml_from_file::<IndexConfig>(&ELASTIC_INDEX_INFO_PATH)?;
-
-        let index_vec: Vec<IndexInfo> = monitor_indexies
-            .index
-            .into_iter()
-            .filter(|elem| *elem.cluster_name() == cluster_name)
-            .collect();
-
-        for elem in index_vec {
-            /* You should also consider cases where a specific index is NOT currently present in Elasticsearch DB */
-            let index_metric_info: IndexMetricInfo = match self
-                .get_index_stats_handle(elem.index_name(), &now_str)
-                .await
-            {
-                Ok(index_metric_info) => index_metric_info,
-                Err(e) => {
-                    error!("[MetricServiceImpl->post_cluster_index_infos] {:?}", e);
-                    continue;
-                }
-            };
-
-            let document: Value = serde_json::to_value(&index_metric_info)?;
-
-            if let Err(e) = mon_es.post_doc(&index_name, document).await {
-                error!("[MetricServiceImpl->post_cluster_index_infos] {:?}", e)
             }
         }
 

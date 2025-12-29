@@ -2,128 +2,12 @@ use crate::common::*;
 
 use crate::model::cluster_dto::cluster_config::*;
 use crate::model::elastic_dto::{elastic_source_parser::*, host_urls::*};
-use crate::model::configs::{config::*, mon_elastic_config::*};
 
 use crate::utils_modules::io_utils::*;
 
-use crate::env_configuration::env_config::*;
+use crate::env_configuration::env_config::ELASTIC_INFO_PATH;
 
 use crate::traits::repository::es_repository_trait::*;
-
-#[doc = "Elasticsearch connection pool - 모니터링용 싱글톤"]
-static MON_ELASTIC_CONN_SEMAPHORE_POOL: once_lazy<Vec<Arc<EsRepositoryImpl>>> =
-    once_lazy::new(|| {
-        let mon_es_config: &MonElasticConfig = get_mon_es_config_info();
-        let cluster_name: &String = mon_es_config.cluster_name();
-        let es_host: &Vec<String> = mon_es_config.hosts();
-        let es_id: &String = mon_es_config.es_id();
-        let es_pw: &String = mon_es_config.es_pw();
-        let pool_cnt: usize = mon_es_config.pool_cnt;
-        let index_pattern: &String = mon_es_config.index_pattern();
-        let per_index_pattern: &String = mon_es_config.per_index_pattern();
-        let urgent_index_pattern: &String = mon_es_config.urgent_index_pattern();
-        let err_log_index_pattern: &String = mon_es_config.err_log_index_pattern();
-
-        (0..pool_cnt)
-            .map(|_| {
-                match EsRepositoryImpl::new(
-                    cluster_name,
-                    es_host.clone(),
-                    es_id,
-                    es_pw,
-                    Some(index_pattern),
-                    Some(per_index_pattern),
-                    Some(urgent_index_pattern),
-                    Some(err_log_index_pattern),
-                ) {
-                    Ok(repo) => Arc::new(repo),
-                    Err(err) => {
-                        error!(
-                            "[MON_ELASTIC_CONN_SEMAPHORE_POOL] Failed to create repository: {}",
-                            err
-                        );
-                        panic!("Failed to initialize monitoring connection pool: {}", err);
-                    }
-                }
-            })
-            .collect()
-    });
-
-#[doc = "세마포어 객체"]
-static SEMAPHORE: once_lazy<Arc<Semaphore>> = once_lazy::new(|| {
-    let mon_es_config: &MonElasticConfig = get_mon_es_config_info();
-    Arc::new(Semaphore::new(mon_es_config.pool_cnt))
-});
-
-#[derive(Debug)]
-pub struct ElasticConnGuard {
-    client: Arc<EsRepositoryImpl>,
-    _permit: OwnedSemaphorePermit, /* drop 시 자동 반환 */
-}
-
-impl ElasticConnGuard {
-    pub async fn new() -> Result<Self, anyhow::Error> {
-        info!(
-            "[ElasticConnGuard] Available permits: {}",
-            SEMAPHORE.available_permits()
-        );
-        let permit: OwnedSemaphorePermit = SEMAPHORE.clone().acquire_owned().await?;
-        info!("[ElasticConnGuard] Acquired semaphore");
-
-        /* 임의로 하나의 클라이언트를 가져옴 (랜덤 선택 가능) */
-        let client: Arc<EsRepositoryImpl> = MON_ELASTIC_CONN_SEMAPHORE_POOL
-            .as_slice()
-            .choose(&mut rand::rng())
-            .cloned()
-            .expect("[Error][EalsticConnGuard -> new] No clients available");
-
-        Ok(Self {
-            client,
-            _permit: permit, /* Drop 시 자동 반환 */
-        })
-    }
-}
-
-impl Deref for ElasticConnGuard {
-    type Target = EsRepositoryImpl;
-
-    fn deref(&self) -> &Self::Target {
-        &self.client
-    }
-}
-
-impl Drop for ElasticConnGuard {
-    fn drop(&mut self) {
-        info!("[ElasticConnGuard] permit dropped (semaphore released)");
-    }
-}
-
-pub async fn get_elastic_guard_conn() -> Result<ElasticConnGuard, anyhow::Error> {
-    info!("use elasticsearch connection");
-    ElasticConnGuard::new().await
-}
-
-// #[doc = "모니터링 역할을 수행해주는 Elasticsearch DB 초기화"]
-// pub fn initialize_mon_db_client() -> Result<EsRepositoryPub, anyhow::Error> {
-
-//     let cluster_config: ClusterConfig = read_toml_from_file::<ClusterConfig>(&ELASTIC_INFO_PATH)?;
-
-//     let mon_cluster: &ClusterInfo = cluster_config.clusters
-//         .get(0)
-//         .ok_or_else(|| anyhow!("[ERROR][initialize_mon_db_client] Cluster is empty"))?;
-
-//     let es_helper: EsRepositoryPub = EsRepositoryPub::new(
-//         &mon_cluster.cluster_name,
-//         mon_cluster.hosts.clone(),
-//         &mon_cluster.es_id,
-//         &mon_cluster.es_pw,
-//         mon_cluster.index_pattern.as_deref(),
-//         mon_cluster.per_index_pattern.as_deref(),
-//         mon_cluster.urgent_index_pattern.as_deref()
-//     )?;
-
-//     Ok(es_helper)
-// }
 
 #[doc = "모니터링 대상이 되는 Elasticsearch DB 초기화"]
 /// # Returns
@@ -187,38 +71,50 @@ impl EsRepositoryImpl {
         urgent_index_pattern: Option<&str>,
         err_log_index_pattern: Option<&str>,
     ) -> Result<Self, anyhow::Error> {
-        let mut urls: Vec<Url> = Vec::new();
+        let mut cluster_urls: Vec<Url> = Vec::new();
         let mut hosts_url_details: Vec<HostUrls> = Vec::new();
 
         for host in &hosts {
-            
             let parse_url: String = if es_id.is_empty() && es_pw.is_empty() {
                 format!("http://{}", host)
             } else {
                 let encoded_pw: std::borrow::Cow<'_, str> = urlencoding::encode(es_pw);
                 format!("http://{}:{}@{}", es_id, encoded_pw, host)
             };
-            
+
             let es_cluster_urls: Url = Url::parse(&format!("http://{}", host))?;
             let es_url: Url = Url::parse(&parse_url)?;
 
-            urls.push(es_cluster_urls);
+            cluster_urls.push(es_cluster_urls);
             hosts_url_details.push(HostUrls::new(host.to_string(), es_url));
         }
-        
-        /* MultiNodeConnectionPool 사용 - 자동 로드밸런싱 및 페일오버 */
-        let conn_pool: MultiNodeConnectionPool = MultiNodeConnectionPool::round_robin(urls, None);
-        // let transport: EsTransport = TransportBuilder::new(conn_pool)
-        //     .timeout(Duration::new(5, 0))
-        //     .build()?;
-        let mut builder: TransportBuilder = TransportBuilder::new(conn_pool).timeout(Duration::from_secs(5));
+
+        /* Using MultiNodeConnectionPool - Automatic load balancing and failover. */
+        /* internet */
+        let conn_pool: MultiNodeConnectionPool =
+            MultiNodeConnectionPool::round_robin(cluster_urls, None);
+
+        /* not internet */
+        //let conn_pool: MultiNodeConnectionPool = MultiNodeConnectionPool::round_robin(urls, Some(Duration::from_secs(300)));
+
+        /*
+            ***
+            If the timeout period is set too short, a timeout will occur during aggregation
+            ->
+            A timeout of 30 to 60 seconds is recommended.
+            ***
+        */
+        let mut builder: TransportBuilder =
+            TransportBuilder::new(conn_pool).timeout(Duration::from_secs(30));
 
         /* Apply Basic Authentication at the transport level.*/
         if !es_id.is_empty() && !es_pw.is_empty() {
             builder = builder.auth(EsCredentials::Basic(es_id.to_string(), es_pw.to_string()));
         }
 
-        let transport: EsTransport = builder.build()?;
+        let transport: EsTransport = builder
+            .build()
+            .map_err(|e| anyhow!("[EsRepositoryImpl->new] {:?}", e))?;
         let es_client: Elasticsearch = Elasticsearch::new(transport);
 
         Ok(EsRepositoryImpl {
@@ -240,21 +136,14 @@ impl EsRepositoryImpl {
     /// # Returns
     /// * bool - connection success status
     async fn check_single_node_connection(url: Url) -> bool {
-
-        match Client::builder()
-            .timeout(Duration::from_secs(5))
-            .build()
-        {
-            Ok(client) => {
-                match client.get(url).send().await {
-                    Ok(response) => response.status().is_success(),
-                    Err(_) => false,
-                }
-            }
+        match Client::builder().timeout(Duration::from_secs(5)).build() {
+            Ok(client) => match client.get(url).send().await {
+                Ok(response) => response.status().is_success(),
+                Err(_) => false,
+            },
             Err(_) => false,
         }
     }
-
 }
 
 #[async_trait]
@@ -311,7 +200,8 @@ impl EsRepository for EsRepositoryImpl {
         let mut results: Vec<(String, bool)> = Vec::new();
 
         for host_info in &self.hosts_url_details {
-            let is_connected: bool = Self::check_single_node_connection(host_info.url.clone()).await;
+            let is_connected: bool =
+                Self::check_single_node_connection(host_info.url.clone()).await;
             results.push((host_info.host.clone(), is_connected));
         }
 
@@ -331,8 +221,8 @@ impl EsRepository for EsRepositoryImpl {
             NodesStatsParts::Metric(fields)
         };
 
-        //왜ㅑ 비밀번호가 안들어가져있지?        
-        info!("es: {:?}", self.es_client);
+        //왜 비밀번호가 안들어가져있지?
+        //info!("es: {:?}", self.es_client);
 
         let response: Response = self
             .es_client
@@ -341,7 +231,6 @@ impl EsRepository for EsRepositoryImpl {
             .send()
             .await
             .map_err(|e| anyhow!("[EsRepositoryImpl->get_node_stats] {:?}", e))?;
-
 
         if response.status_code().is_success() {
             let resp: Value = response.json().await?;

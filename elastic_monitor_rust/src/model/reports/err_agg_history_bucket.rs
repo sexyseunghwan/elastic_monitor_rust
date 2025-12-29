@@ -7,7 +7,6 @@ use crate::utils_modules::time_utils::*;
 #[derive(Debug, Getters, new)]
 #[getset(get = "pub")]
 pub struct ErrorAggHistoryBucket {
-    pub cluster_name: String,
     pub date_at: DateTime<Local>,
     pub doc_count: i64,
 }
@@ -20,7 +19,6 @@ pub struct ErrorAggHistoryBucket {
 /// # Returns
 /// * `Ok(Vec<ErrorAggHistoryBucket>)` - Converted buckets (skips entries without key_as_string)
 pub fn convert_from_histogram_bucket(
-    cluster_name: &str,
     date_histograms: &[DateHistogramBucket],
 ) -> anyhow::Result<Vec<ErrorAggHistoryBucket>> {
     let histogram_buckets: Vec<ErrorAggHistoryBucket> = date_histograms
@@ -30,7 +28,6 @@ pub fn convert_from_histogram_bucket(
                 /* Convert UTC String to Local DateTime */
                 match convert_utc_to_local(date_at_str) {
                     Ok(date_at) => Some(ErrorAggHistoryBucket::new(
-                        cluster_name.to_string(),
                         date_at,
                         bucket.doc_count,
                     )),

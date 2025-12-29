@@ -1,6 +1,6 @@
 use crate::common::*;
 
-use crate::utils_modules::time_utils::*;
+use crate::utils_modules::{io_utils::*, time_utils::*};
 
 use crate::traits::{
     repository::es_repository_trait::*,
@@ -12,14 +12,14 @@ use crate::traits::{
 
 use crate::enums::{report_range::*, report_type::*};
 
-use crate::repository::es_repository::*;
+use crate::repository::mon_es_repository::*;
 
 use crate::env_configuration::env_config::*;
 
 use crate::model::{
     configs::{config::*, report_config::*},
     elastic_dto::elastic_source_parser::*,
-    reports::{err_agg_history_bucket::*, err_log_info::*},
+    reports::err_agg_history_bucket::*,
 };
 
 #[derive(Debug, new)]
@@ -64,7 +64,7 @@ where
             .await?;
 
         let img_path: PathBuf = self
-            .generate_err_history_graph(cluster_name, report_type, &agg_list, start_at, end_at)
+            .generate_err_history_graph(cluster_name, report_type, &agg_list, start_at, end_at, err_title)
             .await
             .with_context(|| {
                 format!(
@@ -104,7 +104,13 @@ where
                 end_at,
                 calendar_interval,
             )
-            .await?;
+            .await
+            .map_err(|e| {
+                anyhow!(
+                    "[ReportServiceImpl -> report_cluster_issues -> node connection fail] {:?}",
+                    e
+                )
+            })?;
 
         /* Cluster status is unstable */
         let (unstable_cnt, unstable_agg_img_path) = self
@@ -116,7 +122,13 @@ where
                 end_at,
                 calendar_interval,
             )
-            .await?;
+            .await
+            .map_err(|e| {
+                anyhow!(
+                    "[ReportServiceImpl -> report_cluster_issues -> cluster status unstable] {:?}",
+                    e
+                )
+            })?;
 
         /* Emergency indicator alarm dispatch */
         let (emergency_cnt, emergency_agg_img_path) = self
@@ -128,12 +140,17 @@ where
                 end_at,
                 calendar_interval,
             )
-            .await?;
+            .await
+            .map_err(|e| {
+                anyhow!(
+                    "[ReportServiceImpl -> report_cluster_issues -> emergency indicators] {:?}",
+                    e
+                )
+            })?;
 
         let local_start_at: DateTime<Local> = start_at.with_timezone(&Local);
         let local_end_at: DateTime<Local> = end_at.with_timezone(&Local);
 
-        // html template...
         // 그림 보내주고 지워줘야 한다.
         let html_content: String = self
             .generate_report_html(
@@ -143,15 +160,21 @@ where
                 con_err_cnt,
                 unstable_cnt,
                 emergency_cnt,
-                con_err_agg_img_path,
-                unstable_agg_img_path,
-                emergency_agg_img_path,
+                &con_err_agg_img_path,
+                &unstable_agg_img_path,
+                &emergency_agg_img_path,
             )
             .await?;
-
+        
         /* Send the report via email. */
-        //self.notification_service
-        //self.notification_service.send_alarm_infos(&html_content).await?;
+        let email_subject: String = format!("{} Report - {}", report_type.get_name(), cluster_name);
+        self.notification_service.send_alert_infos_to_admin(&email_subject, &html_content).await?;
+
+        delete_files_if_exists(vec![
+            con_err_agg_img_path,
+            unstable_agg_img_path,
+            emergency_agg_img_path,
+        ])?;
 
         Ok(())
     }
@@ -314,7 +337,7 @@ where
 
         /* It also converts UTC time to local time */
         let agg_convert_result: Vec<ErrorAggHistoryBucket> =
-            convert_from_histogram_bucket(&cluster_name, &agg_response.logs_per_time.buckets)?;
+            convert_from_histogram_bucket( &agg_response.logs_per_time.buckets)?;
 
         Ok(agg_convert_result)
     }
@@ -341,6 +364,7 @@ where
         err_agg_hist_list: &[ErrorAggHistoryBucket],
         start_at: DateTime<Utc>,
         end_at: DateTime<Utc>,
+        img_subject: &str
     ) -> anyhow::Result<PathBuf> {
         let cur_local_time: DateTime<Local> = Local::now();
         let cur_local_time_str: String = convert_date_to_str_ymdhms(cur_local_time, Local);
@@ -381,8 +405,8 @@ where
         self.chart_service
             .generate_line_chart(
                 &format!(
-                    "[{}~{}] Elasticsearch Error Log Graph",
-                    &agg_start_local_at, &agg_end_local_at
+                    "[{}~{}] {}",
+                    &agg_start_local_at, &agg_end_local_at, img_subject
                 ),
                 x_axis,
                 y_axis,
@@ -391,7 +415,7 @@ where
                 "Error count",
             )
             .await?;
-
+        
         Ok(output_path)
     }
 
@@ -404,9 +428,9 @@ where
         node_conn_fail_cnt: u64,
         cluster_unstable_cnt: u64,
         urgent_indicator_cnt: u64,
-        node_conn_fail_chart_img_path: PathBuf,
-        cluster_unstable_chart_img_path: PathBuf,
-        urgent_indicator_chart_img_path: PathBuf,
+        node_conn_fail_chart_img_path: &PathBuf,
+        cluster_unstable_chart_img_path: &PathBuf,
+        urgent_indicator_chart_img_path: &PathBuf,
     ) -> anyhow::Result<String> {
         let now_local: DateTime<Local> = Local::now();
 
@@ -433,15 +457,17 @@ where
 
         let node_conn_fail_chart_img: String = self
             .chart_service
-            .convert_images_to_base64_html(node_conn_fail_chart_img_path)
+            .convert_images_to_base64_html(&node_conn_fail_chart_img_path)
             .await?;
+
         let cluster_unstable_chart_img: String = self
             .chart_service
-            .convert_images_to_base64_html(cluster_unstable_chart_img_path)
+            .convert_images_to_base64_html(&cluster_unstable_chart_img_path)
             .await?;
+        
         let urgent_indicator_chart_img: String = self
             .chart_service
-            .convert_images_to_base64_html(urgent_indicator_chart_img_path)
+            .convert_images_to_base64_html(&urgent_indicator_chart_img_path)
             .await?;
 
         let html_content: String = template_content
@@ -490,7 +516,6 @@ where
 {
     #[doc = "Function that provides a report service"]
     async fn report_loop(&self, report_type: ReportType, cluster_name: &str) -> anyhow::Result<()> {
-        
         let report_config: ReportConfig = match report_type {
             ReportType::Day => get_daily_report_config_info().clone(),
             ReportType::Week => get_weekly_report_config_info().clone(),
