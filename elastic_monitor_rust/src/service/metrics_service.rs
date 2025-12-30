@@ -5,7 +5,6 @@ use crate::utils_modules::io_utils::*;
 use crate::utils_modules::json_utils::*;
 use crate::utils_modules::time_utils::*;
 
-
 use crate::model::message_formatter_dto::message_formatter_urgent::*;
 use crate::model::monitoring::{breaker_info::*, metric_info::*, segment_info::*};
 use crate::model::reports::err_log_info::*;
@@ -268,7 +267,6 @@ impl<R: EsRepository + Sync + Send> MetricServiceImpl<R> {
     //     }
     // }
 
-
     // #[doc = "모니터링 대상이 되는 index의 개별 정보를 elasticsearch 에 적재하는 함수"]
     // async fn post_cluster_index_infos(&self) -> Result<(), anyhow::Error> {
     //     let cluster_name: String = self.elastic_obj.get_cluster_name();
@@ -316,7 +314,6 @@ impl<R: EsRepository + Sync + Send> MetricServiceImpl<R> {
 
     //     Ok(())
     // }
-
 }
 
 #[async_trait]
@@ -528,11 +525,12 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
                     self.get_breaker_info(node_info, "fielddata")?;
 
                 /* 8.x 버전 */
-                let breaker_inflight_requests: BreakerInfo =
-                    self.get_breaker_info(node_info, "inflight_requests")?;
+                // let breaker_inflight_requests: BreakerInfo =
+                //     self.get_breaker_info(node_info, "inflight_requests")?;
 
                 /* 7.x 버전 */
-                //let breaker_inflight_requests: BreakerInfo = self.get_breaker_info(node_info, "in_flight_requests")?;
+                let breaker_inflight_requests: BreakerInfo =
+                    self.get_breaker_info(node_info, "in_flight_requests")?;
 
                 let breaker_parent: BreakerInfo = self.get_breaker_info(node_info, "parent")?;
 

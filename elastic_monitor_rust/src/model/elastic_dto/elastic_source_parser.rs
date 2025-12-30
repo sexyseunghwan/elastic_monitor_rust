@@ -17,22 +17,23 @@ pub struct HitsWrapper<T> {
 
 #[derive(Debug, Deserialize)]
 pub struct AggregationResponse<T> {
-    pub aggregations: T,
+    #[serde(default)]
+    pub aggregations: Option<T>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
+pub struct DateHistogramBucket {
+    pub key_as_string: Option<String>,
+    pub key: i64,
+    pub doc_count: i64,
+}
+
+#[derive(Debug, Deserialize, Default)]
 pub struct DateHistogramAggregation {
     pub buckets: Vec<DateHistogramBucket>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct DateHistogramBucket {
-    pub key_as_string: Option<String>,
-    pub _key: i64,
-    pub doc_count: i64,
-}
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct ErrorLogsAggregation {
     pub logs_per_time: DateHistogramAggregation,
 }

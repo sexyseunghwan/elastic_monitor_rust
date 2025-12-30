@@ -59,12 +59,20 @@ where
             .get_cluster_err_datas_cnt_from_es(err_title, start_at, end_at)
             .await?;
 
+        // empty data...possible??? -> 빈 데이터가 못오게 하면 될거같은데...?!
         let agg_list: Vec<ErrorAggHistoryBucket> = self
             .get_agg_err_datas_from_es(err_title, start_at, end_at, calendar_interval)
             .await?;
 
         let img_path: PathBuf = self
-            .generate_err_history_graph(cluster_name, report_type, &agg_list, start_at, end_at, err_title)
+            .generate_err_history_graph(
+                cluster_name,
+                report_type,
+                &agg_list,
+                start_at,
+                end_at,
+                err_title,
+            )
             .await
             .with_context(|| {
                 format!(
@@ -165,11 +173,13 @@ where
                 &emergency_agg_img_path,
             )
             .await?;
-        
-        /* Send the report via email. */
-        let email_subject: String = format!("{} Report - {}", report_type.get_name(), cluster_name);
-        self.notification_service.send_alert_infos_to_admin(&email_subject, &html_content).await?;
 
+        /* Send the report via email. */
+        let email_subject: String = format!("[Elasticsearch] {} error Report - {}", report_type.get_name(), cluster_name);
+        self.notification_service
+            .send_alert_infos_to_admin(&email_subject, &html_content)
+            .await?;
+        
         delete_files_if_exists(vec![
             con_err_agg_img_path,
             unstable_agg_img_path,
@@ -288,7 +298,7 @@ where
             mon_es.get_cluster_index_error_pattern()
                 .ok_or_else(|| anyhow!("[ReportServiceImpl->get_agg_err_datas_from_es]`Error log index pattern` is not configured"))?
         );
-
+        
         let search_query: Value = json!({
             "query": {
                 "bool": {
@@ -297,9 +307,8 @@ where
                             "range": {
                                 "timestamp": {
                                     "gte": convert_date_to_str_full(start_at, Utc),
-                                    "lte": convert_date_to_str_full(end_at, Utc)
-                                }
-                            }
+                                    "lte": convert_date_to_str_full(end_at, Utc)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          }
+                            }  
                         },
                         {
                             "term": {
@@ -329,17 +338,33 @@ where
             },
             "size": 0
         });
-
-        let agg_response: ErrorLogsAggregation = mon_es
+        
+        let agg_response: Option<ErrorLogsAggregation> = mon_es
             .get_agg_query::<ErrorLogsAggregation>(&search_query, &err_index_name)
             .await
             .context("[ReportServiceImpl->get_agg_err_datas_from_es] The `response body` could not be retrieved.")?;
 
-        /* It also converts UTC time to local time */
-        let agg_convert_result: Vec<ErrorAggHistoryBucket> =
-            convert_from_histogram_bucket( &agg_response.logs_per_time.buckets)?;
+        match agg_response {
+            Some(agg_response) => {
+                /* It also converts UTC time to local time */
+                let agg_convert_result: Vec<ErrorAggHistoryBucket> =
+                    convert_from_histogram_bucket(&agg_response.logs_per_time.buckets)?;
+                Ok(agg_convert_result)
+            },
+            None => {
+                // Zero Data...
+                
+                
+                let agg_convert_result: Vec<ErrorAggHistoryBucket> = Vec::new();
+                Ok(agg_convert_result)
+            }
+        }
 
-        Ok(agg_convert_result)
+
+        /* It also converts UTC time to local time */
+        // let agg_convert_result: Vec<ErrorAggHistoryBucket> =
+        //     convert_from_histogram_bucket(&agg_response.logs_per_time.buckets)?;
+        //Ok(agg_convert_result)
     }
 
     #[doc = "Generate a line chart visualization of error log history over time"]
@@ -364,7 +389,7 @@ where
         err_agg_hist_list: &[ErrorAggHistoryBucket],
         start_at: DateTime<Utc>,
         end_at: DateTime<Utc>,
-        img_subject: &str
+        img_subject: &str,
     ) -> anyhow::Result<PathBuf> {
         let cur_local_time: DateTime<Local> = Local::now();
         let cur_local_time_str: String = convert_date_to_str_ymdhms(cur_local_time, Local);
@@ -415,7 +440,7 @@ where
                 "Error count",
             )
             .await?;
-        
+
         Ok(output_path)
     }
 
@@ -464,7 +489,7 @@ where
             .chart_service
             .convert_images_to_base64_html(&cluster_unstable_chart_img_path)
             .await?;
-        
+
         let urgent_indicator_chart_img: String = self
             .chart_service
             .convert_images_to_base64_html(&urgent_indicator_chart_img_path)

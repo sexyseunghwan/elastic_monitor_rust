@@ -1,8 +1,6 @@
 use crate::common::*;
 
-use crate::traits::service::{
-    monitoring_service_trait::*, report_service_trait::*,
-};
+use crate::traits::service::{monitoring_service_trait::*, report_service_trait::*};
 
 use crate::model::configs::config::*;
 
@@ -114,7 +112,7 @@ where
     {
         let task_name: String = task_name.to_string();
         let cluster_name_cloned: String = cluster_name.to_string();
-
+        
         if !enabled {
             return tokio::spawn(async move {
                 info!("[{}] Disabled. Skipping.", task_name);

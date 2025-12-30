@@ -9,7 +9,7 @@ pub mod monitoring;
 pub mod receiver_email;
 pub mod receiver_email_list;
 pub mod reports;
+pub mod search_indicies;
 pub mod sqlserver;
 pub mod thread_pool_stat;
-pub mod search_indicies;
 pub mod urgent_dto;

@@ -94,9 +94,6 @@ impl EsRepositoryImpl {
         let conn_pool: MultiNodeConnectionPool =
             MultiNodeConnectionPool::round_robin(cluster_urls, None);
 
-        /* not internet */
-        //let conn_pool: MultiNodeConnectionPool = MultiNodeConnectionPool::round_robin(urls, Some(Duration::from_secs(300)));
-
         /*
             ***
             If the timeout period is set too short, a timeout will occur during aggregation
@@ -388,11 +385,14 @@ impl EsRepository for EsRepositoryImpl {
     ///
     /// # Returns
     /// * Result<T, anyhow::Error> - aggregation 결과를 담은 구조체
-    async fn get_agg_query<T: for<'de> Deserialize<'de> + Send + 'static>(
+    async fn get_agg_query<T>(
         &self,
         es_query: &Value,
         index_name: &str,
-    ) -> anyhow::Result<T> {
+    ) -> anyhow::Result<Option<T>> 
+    where 
+        T: for<'de> Deserialize<'de> + Send + 'static + std::default::Default
+    {
         let response: Response = self
             .es_client
             .search(SearchParts::Index(&[index_name]))

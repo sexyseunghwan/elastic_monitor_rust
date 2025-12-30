@@ -3,8 +3,6 @@ Author      : Seunghwan Shin
 Create date : 2024-10-02
 Description : Elasticsearch 클러스터의 문제를 탐색하고 telegram 을 통해 문제를 전달해주는 서비스
 
-elasticsearch = "8.15.0-alpha.1"
-
 History     : 2024-10-02 Seunghwan Shin       # [v.1.0.0] first create
               2024-10-07 Seunghwan Shin       # [v.1.1.0] Pending Task 모니터링 항목 추가.
               2024-10-08 Seunghwan Shin       # [v.1.1.1] 소스코드에 추상화를 이용해서 아키텍쳐 적용
@@ -39,7 +37,7 @@ History     : 2024-10-02 Seunghwan Shin       # [v.1.0.0] first create
                                                 1) 리눅스 호환가능하도록 변경
                                                 2) 개발계에서 문제가 생길경우에는 단독 메일만 보내도록 처리
               2025-09-11 Seunghwan Shin       # [v.2.2.0] 모니터링 전용 ES 에 메트릭 수집하는 방식으로 코드 변경
-              2025-12-00 Seunghwan Shin       # [v.3.0.0] Added the monitoring report feature
+              2025-12-29 Seunghwan Shin       # [v.3.0.0] Added the monitoring report feature
 */
 mod common;
 use common::*;
@@ -88,7 +86,7 @@ async fn main() {
             e
         )
     });
-    
+
     /*
         Shared services (stateless or immutable config)
         These services can be safely shared across all clusters
