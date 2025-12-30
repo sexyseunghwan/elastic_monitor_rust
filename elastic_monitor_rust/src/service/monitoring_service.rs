@@ -144,6 +144,7 @@ where
     #[doc = "Function that monitors the Elasticsearch cluster status."]
     async fn monitoring_loop(&self) -> anyhow::Result<()> {
         loop {
+            
             if let Err(e) = self.cluster_nodes_check().await {
                 error!(
                     "[MonitoringServiceImpl->monitoring_loop] cluster_nodes_check() error: {:?}",
@@ -157,7 +158,11 @@ where
                     e
                 );
             }
-
+            
+            /*
+                Partial failures are tolerated to ensure 
+                that metrics from remaining nodes are still collected even when a specific node becomes unreachable.
+            */
             if let Err(e) = self.input_es_metric_infos().await {
                 error!(
                     "[MonitoringServiceImpl->monitoring_loop] input_es_metric_infos() error: {:?}",

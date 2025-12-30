@@ -93,7 +93,7 @@ impl EsRepositoryImpl {
         /* internet */
         let conn_pool: MultiNodeConnectionPool =
             MultiNodeConnectionPool::round_robin(cluster_urls, None);
-
+        
         /*
             ***
             If the timeout period is set too short, a timeout will occur during aggregation

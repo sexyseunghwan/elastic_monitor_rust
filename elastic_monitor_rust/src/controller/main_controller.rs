@@ -118,7 +118,7 @@ where
                 info!("[{}] Disabled. Skipping.", task_name);
             });
         }
-
+        
         tokio::spawn(async move {
             match service
                 .report_loop(report_type, cluster_name_cloned.as_str())

@@ -158,8 +158,7 @@ where
 
         let local_start_at: DateTime<Local> = start_at.with_timezone(&Local);
         let local_end_at: DateTime<Local> = end_at.with_timezone(&Local);
-
-        // 그림 보내주고 지워줘야 한다.
+        
         let html_content: String = self
             .generate_report_html(
                 report_type,
@@ -338,7 +337,7 @@ where
             },
             "size": 0
         });
-        
+
         let agg_response: Option<ErrorLogsAggregation> = mon_es
             .get_agg_query::<ErrorLogsAggregation>(&search_query, &err_index_name)
             .await

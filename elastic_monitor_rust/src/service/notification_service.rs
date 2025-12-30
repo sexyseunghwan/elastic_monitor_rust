@@ -294,12 +294,12 @@ impl NotificationService for NotificationServiceImpl {
         let receivers: &ReceiverEmailList = self.email_list();
 
         /* Send message using iMailer */
-        self.send_alarm_to_imailer(mail_subject, &html_template, receivers)
-            .await?;
+        // self.send_alarm_to_imailer(mail_subject, &html_template, receivers)
+        //     .await?;
 
         /* Send messages using SMTP - internet mang */
-        // self.send_message_to_smtp(mail_subject, &html_template, receivers)
-        //     .await?;
+        self.send_message_to_smtp(mail_subject, &html_template, receivers)
+            .await?;
 
         Ok(())
     }
@@ -313,32 +313,32 @@ impl NotificationService for NotificationServiceImpl {
         let receiver_email_list: &ReceiverEmailList = self.email_list();
 
         /* SMTP version -> for online network use */
-        // self.send_message_to_receivers_smtp(email_subject, html_content, receiver_email_list)
-        //     .await?;
+        self.send_message_to_receivers_smtp(email_subject, html_content, receiver_email_list)
+            .await?;
 
         /* Imailer version - Using stored procedure */
-        let sql_conn: Arc<SqlServerRepositoryImpl> = get_sql_server_repo();
+        // let sql_conn: Arc<SqlServerRepositoryImpl> = get_sql_server_repo();
 
-        for receiver in receiver_email_list.receivers() {
-            match sql_conn
-                .execute_imailer_procedure(receiver.email_id(), email_subject, html_content)
-                .await
-            {
-                Ok(_) => {
-                    info!(
-                        "Successfully sent index alert mail to {}",
-                        receiver.email_id()
-                    );
-                }
-                Err(e) => {
-                    error!(
-                        "[ERROR][NotificationServiceImpl->send_alert_infos_to_admin] Failed to send mail to {} : {:?}",
-                        receiver.email_id(),
-                        e
-                    );
-                }
-            }
-        }
+        // for receiver in receiver_email_list.receivers() {
+        //     match sql_conn
+        //         .execute_imailer_procedure(receiver.email_id(), email_subject, html_content)
+        //         .await
+        //     {
+        //         Ok(_) => {
+        //             info!(
+        //                 "Successfully sent index alert mail to {}",
+        //                 receiver.email_id()
+        //             );
+        //         }
+        //         Err(e) => {
+        //             error!(
+        //                 "[ERROR][NotificationServiceImpl->send_alert_infos_to_admin] Failed to send mail to {} : {:?}",
+        //                 receiver.email_id(),
+        //                 e
+        //             );
+        //         }
+        //     }
+        // }
 
         Ok(())
     }

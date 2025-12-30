@@ -1,3 +1,5 @@
+use elasticsearch::cluster;
+
 use crate::common::*;
 
 use crate::utils_modules::calculate_utils::*;
@@ -525,12 +527,12 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
                     self.get_breaker_info(node_info, "fielddata")?;
 
                 /* 8.x 버전 */
-                // let breaker_inflight_requests: BreakerInfo =
-                //     self.get_breaker_info(node_info, "inflight_requests")?;
+                let breaker_inflight_requests: BreakerInfo =
+                    self.get_breaker_info(node_info, "inflight_requests")?;
 
                 /* 7.x 버전 */
-                let breaker_inflight_requests: BreakerInfo =
-                    self.get_breaker_info(node_info, "in_flight_requests")?;
+                // let breaker_inflight_requests: BreakerInfo =
+                //     self.get_breaker_info(node_info, "in_flight_requests")?;
 
                 let breaker_parent: BreakerInfo = self.get_breaker_info(node_info, "parent")?;
 
@@ -727,8 +729,8 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
         Ok(())
     }
 
-    #[doc = "Function for loading information from each cluster node into Elasticsearch"]
-    async fn post_cluster_nodes_infos(&self) -> Result<(), anyhow::Error> {
+    #[doc = "Function for loading information from each cluster node into Monitoring Elasticsearch"]
+    async fn post_cluster_nodes_infos(&self) -> anyhow::Result<()> {
         /* An instance vector to store the indicators. */
         let mut metric_vec: Vec<MetricInfo> = Vec::new();
 
@@ -738,16 +740,17 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
         /* Monitoring Elasticsearch object information (including connections) */
         let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
 
+        /* metric_info_log_ ... */
         let cluster_index_pattern: String =
             mon_es.get_cluster_index_pattern().ok_or_else(|| {
                 anyhow!(
                     "[MetricServiceImpl->post_cluster_nodes_infos] cluster_index_pattern is empty"
                 )
             })?;
-
-        /* 날짜 기준으로 인덱스 이름 맵핑 */
+        
+        /* metric_info_log_2025...*/
         let index_name: String = self.get_today_index_name(&cluster_index_pattern, now);
-
+        
         /* 1. GET /_nodes/stats */
         self.get_nodes_stats_handle(&mut metric_vec, &now_str)
             .await?;
@@ -864,7 +867,7 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
                     "Node connection failure".into(),
                     format!("Connection to node {} cannot be confirmed.", host),
                 );
-
+                
                 serde_json::to_value(&err_log_info).ok()
             })
             .collect();
