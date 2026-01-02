@@ -1,9 +1,6 @@
 pub mod cluster_dto;
 pub mod configs;
 pub mod elastic_dto;
-//pub mod index_config;
-//pub mod index_info;
-//pub mod index_metric_info;
 pub mod message_formatter_dto;
 pub mod monitoring;
 pub mod receiver_email;

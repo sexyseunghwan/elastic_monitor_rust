@@ -1,7 +1,8 @@
 use crate::common::*;
 
 use crate::model::cluster_dto::cluster_config::*;
-use crate::model::elastic_dto::{elastic_source_parser::*, host_urls::*};
+use crate::model::configs::{config::get_mon_es_config_info, mon_elastic_config::*};
+use crate::model::elastic_dto::elastic_source_parser::*;
 
 use crate::utils_modules::io_utils::*;
 
@@ -9,43 +10,18 @@ use crate::env_configuration::env_config::ELASTIC_INFO_PATH;
 
 use crate::traits::repository::es_repository_trait::*;
 
-#[doc = "모니터링 대상이 되는 Elasticsearch DB 초기화"]
-/// # Returns
-/// * Result<Vec<EsRepositoryPub>, anyhow::Error> - 모니터링 할 대상 Elasticsearch 정보 list
-pub fn initialize_db_clients() -> Result<Vec<EsRepositoryImpl>, anyhow::Error> {
-    let mut elastic_conn_vec: Vec<EsRepositoryImpl> = Vec::new();
-
-    let cluster_config: ClusterConfig = read_toml_from_file::<ClusterConfig>(&ELASTIC_INFO_PATH)?;
-
-    for config in &cluster_config.clusters {
-        let es_helper: EsRepositoryImpl = EsRepositoryImpl::new(
-            &config.cluster_name,
-            config.hosts.clone(),
-            &config.es_id,
-            &config.es_pw,
-            config.index_pattern.as_deref(),
-            config.per_index_pattern.as_deref(),
-            config.urgent_index_pattern.as_deref(),
-            config.err_log_index_pattern.as_deref(),
-        )?;
-
-        elastic_conn_vec.push(es_helper);
-    }
-
-    Ok(elastic_conn_vec)
-}
-
-#[derive(Debug, Getters, Clone)]
-#[getset(get = "pub")]
+#[derive(Debug, Getters, Setters, Clone)]
+#[getset(get = "pub", set = "pub")]
 pub struct EsRepositoryImpl {
     pub cluster_name: String,
     pub es_client: Elasticsearch,
     pub hosts: Vec<String>,
-    pub hosts_url_details: Vec<HostUrls>,
     pub index_pattern: Option<String>,
     pub per_index_pattern: Option<String>, /* deprecated... */
     pub urgent_index_pattern: Option<String>,
     pub err_log_index_pattern: Option<String>,
+    pub es_id: Option<String>,
+    pub es_pw: Option<String>,
 }
 
 impl EsRepositoryImpl {
@@ -71,29 +47,42 @@ impl EsRepositoryImpl {
         urgent_index_pattern: Option<&str>,
         err_log_index_pattern: Option<&str>,
     ) -> Result<Self, anyhow::Error> {
-        let mut cluster_urls: Vec<Url> = Vec::new();
-        let mut hosts_url_details: Vec<HostUrls> = Vec::new();
+        let es_id_opt: Option<String> = (!es_id.is_empty()).then(|| es_id.to_string());
+        let es_pw_opt: Option<String> = (!es_pw.is_empty()).then(|| es_pw.to_string());
 
-        for host in &hosts {
-            let parse_url: String = if es_id.is_empty() && es_pw.is_empty() {
-                format!("http://{}", host)
-            } else {
-                let encoded_pw: std::borrow::Cow<'_, str> = urlencoding::encode(es_pw);
-                format!("http://{}:{}@{}", es_id, encoded_pw, host)
-            };
+        let es_client: Elasticsearch =
+            Self::create_es_conn_pool(&hosts, es_id_opt.as_deref(), es_pw_opt.as_deref())
+                .map_err(|e| anyhow!("[EsRepositoryImpl::new] {:?}", e))?;
 
-            let es_cluster_urls: Url = Url::parse(&format!("http://{}", host))?;
-            let es_url: Url = Url::parse(&parse_url)?;
+        Ok(Self {
+            cluster_name: cluster_name.to_string(),
+            es_client,
+            hosts,
+            index_pattern: log_index_pattern.map(str::to_string),
+            per_index_pattern: per_index_pattern.map(str::to_string),
+            urgent_index_pattern: urgent_index_pattern.map(str::to_string),
+            err_log_index_pattern: err_log_index_pattern.map(str::to_string),
+            es_id: es_id_opt,
+            es_pw: es_pw_opt,
+        })
+    }
 
-            cluster_urls.push(es_cluster_urls);
-            hosts_url_details.push(HostUrls::new(host.to_string(), es_url));
-        }
+    #[doc = "Function that creates an Elasticsearch connection pool."]
+    fn create_es_conn_pool(
+        hosts: &Vec<String>,
+        es_id_opt: Option<&str>,
+        es_pw_opt: Option<&str>,
+    ) -> anyhow::Result<Elasticsearch> {
+        let cluster_urls: Vec<Url> = hosts
+            .iter()
+            .map(|host| Url::parse(&format!("http://{}", host)))
+            .collect::<Result<_, _>>()
+            .map_err(|e| anyhow!("[EsRepositoryImpl::new][cluster_urls] {:?}", e))?;
 
-        /* Using MultiNodeConnectionPool - Automatic load balancing and failover. */
-        /* internet */
+        /* Using MultiNodeConnectionPool */
         let conn_pool: MultiNodeConnectionPool =
             MultiNodeConnectionPool::round_robin(cluster_urls, None);
-        
+
         /*
             ***
             If the timeout period is set too short, a timeout will occur during aggregation
@@ -104,26 +93,19 @@ impl EsRepositoryImpl {
         let mut builder: TransportBuilder =
             TransportBuilder::new(conn_pool).timeout(Duration::from_secs(30));
 
-        /* Apply Basic Authentication at the transport level.*/
-        if !es_id.is_empty() && !es_pw.is_empty() {
-            builder = builder.auth(EsCredentials::Basic(es_id.to_string(), es_pw.to_string()));
+        /* Authentication */
+        //let es_id_opt: Option<String> = (!es_id.is_empty()).then(|| es_id.to_string());
+        //let es_pw_opt: Option<String> = (!es_pw.is_empty()).then(|| es_pw.to_string());
+
+        if let (Some(id), Some(pw)) = (es_id_opt, es_pw_opt) {
+            builder = builder.auth(EsCredentials::Basic(id.to_string(), pw.to_string()));
         }
 
         let transport: EsTransport = builder
             .build()
-            .map_err(|e| anyhow!("[EsRepositoryImpl->new] {:?}", e))?;
-        let es_client: Elasticsearch = Elasticsearch::new(transport);
+            .map_err(|e| anyhow!("[EsRepositoryImpl::new] {:?}", e))?;
 
-        Ok(EsRepositoryImpl {
-            cluster_name: cluster_name.to_string(),
-            es_client,
-            hosts,
-            hosts_url_details,
-            index_pattern: log_index_pattern.map(str::to_string),
-            per_index_pattern: per_index_pattern.map(str::to_string),
-            urgent_index_pattern: urgent_index_pattern.map(str::to_string),
-            err_log_index_pattern: err_log_index_pattern.map(str::to_string),
-        })
+        Ok(Elasticsearch::new(transport))
     }
 
     #[doc = "Helper function to check the connection status of a single node."]
@@ -140,6 +122,20 @@ impl EsRepositoryImpl {
             },
             Err(_) => false,
         }
+    }
+
+    #[doc = "Function that create elasticsearch url"]
+    fn build_es_url(host: &str, es_id: Option<&str>, es_pw: Option<&str>) -> anyhow::Result<Url> {
+        let url: String = match (es_id, es_pw) {
+            (Some(id), Some(pw)) => {
+                format!("http://{}:{}@{}", id, pw, host)
+            }
+            _ => {
+                format!("http://{}", host)
+            }
+        };
+
+        Url::parse(&url).map_err(|e| anyhow!("[build_es_url] invalid url: {}", e))
     }
 }
 
@@ -183,7 +179,7 @@ impl EsRepository for EsRepositoryImpl {
             Ok(resp)
         } else {
             let error_message: String = format!(
-                "[EsRepositoryImpl->get_health_info()] Failed to GET document: Status Code: {}",
+                "[EsRepositoryImpl::get_health_info()] Failed to GET document: Status Code: {}",
                 response.status_code()
             );
             Err(anyhow!(error_message))
@@ -194,12 +190,38 @@ impl EsRepository for EsRepositoryImpl {
     /// # Returns
     /// * Vec<(String, bool)> - 각 호스트별 연결 상태
     async fn get_node_conn_check(&self) -> Vec<(String, bool)> {
+        let mut futures = FuturesUnordered::new();
+
+        let es_id: Option<&str> = self.es_id.as_deref();
+        let es_pw: Option<&str> = self.es_pw.as_deref();
+
+        for host in self.hosts() {
+            let host: String = host.clone();
+
+            let url_result: Result<Url, anyhow::Error> = Self::build_es_url(&host, es_id, es_pw);
+
+            futures.push(async move {
+                match url_result {
+                    Ok(es_cluster_url) => {
+                        let is_connected: bool =
+                            Self::check_single_node_connection(es_cluster_url).await;
+                        (host, is_connected)
+                    }
+                    Err(e) => {
+                        warn!(
+                            "[EsRepositoryImpl::get_node_conn_check] invalid url for host {}: {:?}",
+                            host, e
+                        );
+                        (host, false)
+                    }
+                }
+            });
+        }
+
         let mut results: Vec<(String, bool)> = Vec::new();
 
-        for host_info in &self.hosts_url_details {
-            let is_connected: bool =
-                Self::check_single_node_connection(host_info.url.clone()).await;
-            results.push((host_info.host.clone(), is_connected));
+        while let Some(result) = futures.next().await {
+            results.push(result);
         }
 
         results
@@ -217,9 +239,6 @@ impl EsRepository for EsRepositoryImpl {
         } else {
             NodesStatsParts::Metric(fields)
         };
-
-        //왜 비밀번호가 안들어가져있지?
-        //info!("es: {:?}", self.es_client);
 
         let response: Response = self
             .es_client
@@ -385,13 +404,9 @@ impl EsRepository for EsRepositoryImpl {
     ///
     /// # Returns
     /// * Result<T, anyhow::Error> - aggregation 결과를 담은 구조체
-    async fn get_agg_query<T>(
-        &self,
-        es_query: &Value,
-        index_name: &str,
-    ) -> anyhow::Result<Option<T>> 
-    where 
-        T: for<'de> Deserialize<'de> + Send + 'static + std::default::Default
+    async fn get_agg_query<T>(&self, es_query: &Value, index_name: &str) -> anyhow::Result<T>
+    where
+        T: for<'de> Deserialize<'de> + Send + 'static,
     {
         let response: Response = self
             .es_client
@@ -442,6 +457,43 @@ impl EsRepository for EsRepositoryImpl {
         }
     }
 
+    #[doc = "Function to check whether data exists in a specific index."]
+    /// # Arguments
+    /// * `index_name` 
+    ///
+    /// # Returns
+    /// * Result<bool, anyhow::Error> - 데이터 존재 여부 (true: 데이터 존재, false: 데이터 없음)
+    async fn check_index_has_data(&self, index_name: &str) -> anyhow::Result<bool> {
+        let query: Value = json!({
+            "query": {
+                "match_all": {}
+            },
+            "size": 0,
+            "terminate_after": 1
+        });
+
+        let response: Response = self
+            .es_client
+            .search(SearchParts::Index(&[index_name]))
+            .body(query)
+            .send()
+            .await?;
+
+        if response.status_code().is_success() {
+            let json_response: Value = response.json().await?;
+            let total_hits: u64 = json_response["hits"]["total"]["value"]
+                .as_u64()
+                .unwrap_or(0);
+            Ok(total_hits > 0)
+        } else {
+            let error_body: String = response.text().await?;
+            Err(anyhow!(
+                "[EsRepositoryImpl::check_index_has_data] response status is failed: {:?}",
+                error_body
+            ))
+        }
+    }
+
     #[doc = "Elasticsearch 클러스터의 이름을 가져와주는 함수."]
     fn get_cluster_name(&self) -> String {
         self.cluster_name().to_string()
@@ -471,4 +523,85 @@ impl EsRepository for EsRepositoryImpl {
     fn get_cluster_index_error_pattern(&self) -> Option<String> {
         self.err_log_index_pattern.clone()
     }
+
+    #[doc = "Function that recreates the connection pool when issues arise with the Elasticsearch connection."]
+    fn change_es_conn_pool(&mut self, disable_node_list: Vec<String>) -> anyhow::Result<()> {
+        let disable_set: HashSet<&String> = disable_node_list.iter().collect();
+
+        let enabled_hosts: Vec<String> = self
+            .hosts
+            .iter()
+            .filter(|h| !disable_set.contains(*h))
+            .cloned()
+            .collect();
+
+        let es_id: Option<&str> = self.es_id.as_deref();
+        let es_pw: Option<&str> = self.es_pw.as_deref();
+
+        let es_client: Elasticsearch = Self::create_es_conn_pool(&enabled_hosts, es_id, es_pw)?;
+
+        self.set_es_client(es_client);
+
+        Ok(())
+    }
+}
+
+#[doc = "Function that initializes the Elasticsearch database being monitored"]
+/// # Returns
+/// * Result<Vec<EsRepositoryPub>, anyhow::Error> - 모니터링 할 대상 Elasticsearch 정보 list
+pub fn initialize_db_clients() -> Result<Vec<EsRepositoryImpl>, anyhow::Error> {
+    let mut elastic_conn_vec: Vec<EsRepositoryImpl> = Vec::new();
+
+    let cluster_config: ClusterConfig = read_toml_from_file::<ClusterConfig>(&ELASTIC_INFO_PATH)?;
+
+    for config in &cluster_config.clusters {
+        let es_helper: EsRepositoryImpl = EsRepositoryImpl::new(
+            &config.cluster_name,
+            config.hosts.clone(),
+            &config.es_id,
+            &config.es_pw,
+            config.index_pattern.as_deref(),
+            config.per_index_pattern.as_deref(),
+            config.urgent_index_pattern.as_deref(),
+            config.err_log_index_pattern.as_deref(),
+        )?;
+
+        elastic_conn_vec.push(es_helper);
+    }
+
+    Ok(elastic_conn_vec)
+}
+
+#[doc = "A function that initializes the Elasticsearch client for monitoring purposes."]
+pub fn initialize_mon_db_client() -> anyhow::Result<EsRepositoryImpl> {
+    let mon_es_config: &MonElasticConfig = get_mon_es_config_info();
+
+    let cluster_name: &String = mon_es_config.cluster_name();
+    let es_host: &Vec<String> = mon_es_config.hosts();
+    let es_id: &String = mon_es_config.es_id();
+    let es_pw: &String = mon_es_config.es_pw();
+
+    let index_pattern: &String = mon_es_config.index_pattern();
+    let per_index_pattern: &String = mon_es_config.per_index_pattern();
+    let urgent_index_pattern: &String = mon_es_config.urgent_index_pattern();
+    let err_log_index_pattern: &String = mon_es_config.err_log_index_pattern();
+
+    let es_repository: EsRepositoryImpl = match EsRepositoryImpl::new(
+        cluster_name,
+        es_host.clone(),
+        es_id,
+        es_pw,
+        Some(index_pattern),
+        Some(per_index_pattern),
+        Some(urgent_index_pattern),
+        Some(err_log_index_pattern),
+    ) {
+        Ok(repo) => repo,
+        Err(e) => {
+            error!("[PostMonEsService::new] {:?}", e);
+            panic!("[PostMonEsService::new] {:?}", e);
+        }
+    };
+
+    Ok(es_repository)
 }

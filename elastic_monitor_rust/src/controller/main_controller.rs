@@ -21,7 +21,7 @@ where
     pub async fn main_task(&self) -> anyhow::Result<()> {
         /* Monitoring tasks and reporting tasks are executed in parallel. */
         /* Cluster name to be monitored */
-        let cluster_name: String = self.monitoring_service.get_cluster_name();
+        let cluster_name: String = self.monitoring_service.get_cluster_name().await;
 
         /* 1. Monitoring task */
         let monitoring_handle: tokio::task::JoinHandle<()> =
@@ -112,13 +112,13 @@ where
     {
         let task_name: String = task_name.to_string();
         let cluster_name_cloned: String = cluster_name.to_string();
-        
+
         if !enabled {
             return tokio::spawn(async move {
                 info!("[{}] Disabled. Skipping.", task_name);
             });
         }
-        
+
         tokio::spawn(async move {
             match service
                 .report_loop(report_type, cluster_name_cloned.as_str())

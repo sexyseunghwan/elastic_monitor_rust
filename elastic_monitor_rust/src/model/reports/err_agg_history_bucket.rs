@@ -21,7 +21,6 @@ pub struct ErrorAggHistoryBucket {
 pub fn convert_from_histogram_bucket(
     date_histograms: &[DateHistogramBucket],
 ) -> anyhow::Result<Vec<ErrorAggHistoryBucket>> {
-
     let histogram_buckets: Vec<ErrorAggHistoryBucket> = date_histograms
         .iter()
         .filter_map(|bucket| {
@@ -43,7 +42,7 @@ pub fn convert_from_histogram_bucket(
             })
         })
         .collect();
-    
+
     if histogram_buckets.len() < date_histograms.len() {
         warn!(
             "[ErrorAggHistoryBucket::convert_from_histogram_bucket] {} buckets skipped due to missing key_as_string",

@@ -29,9 +29,11 @@ where
     for path in file_paths {
         if path.exists() {
             match delete_file(&path) {
-                Ok(_) => (),
+                Ok(_) => {  
+                    info!("[io_utiles::delete_files_if_exists] The deletion of the `{:?}` file was successful", path);
+                },
                 Err(e) => {
-                    error!("[io_utiles -> delete_files_if_exists] {:?}", e);
+                    error!("[io_utiles::delete_files_if_exists] {:?}", e);
                     continue;
                 }
             }

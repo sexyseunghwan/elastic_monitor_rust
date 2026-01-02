@@ -17,8 +17,7 @@ pub struct HitsWrapper<T> {
 
 #[derive(Debug, Deserialize)]
 pub struct AggregationResponse<T> {
-    #[serde(default)]
-    pub aggregations: Option<T>,
+    pub aggregations: T,
 }
 
 #[derive(Debug, Deserialize, Default)]

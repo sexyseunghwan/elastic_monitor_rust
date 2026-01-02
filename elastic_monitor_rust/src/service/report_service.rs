@@ -1,53 +1,162 @@
+use futures::TryFutureExt;
+
 use crate::common::*;
 
 use crate::utils_modules::{io_utils::*, time_utils::*};
 
-use crate::traits::{
-    repository::es_repository_trait::*,
-    service::{
-        chart_service_trait::*, metric_service_trait::*, notification_service_trait::*,
-        report_service_trait::*,
-    },
-};
+use crate::traits::service::{
+        chart_service_trait::*, metric_service_trait::*, mon_es_service_trait::*,
+        notification_service_trait::*, report_service_trait::*,
+    };
 
-use crate::enums::{report_range::*, report_type::*};
-
-use crate::repository::mon_es_repository::*;
+use crate::enums::{report_type::*, img_file_type::*};
 
 use crate::env_configuration::env_config::*;
 
 use crate::model::{
     configs::{config::*, report_config::*},
-    elastic_dto::elastic_source_parser::*,
     reports::err_agg_history_bucket::*,
+    reports::report_range::*
 };
 
 #[derive(Debug, new)]
-pub struct ReportServiceImpl<M: MetricService, N: NotificationService, C: ChartService> {
+pub struct ReportServiceImpl<
+    M: MetricService,
+    N: NotificationService,
+    C: ChartService,
+    ME: MonEsService,
+> {
     metric_service: Arc<M>,
     notification_service: Arc<N>,
     chart_service: Arc<C>,
+    mon_es_service: Arc<ME>,
 }
 
-impl<M, N, C> ReportServiceImpl<M, N, C>
+impl<M, N, C, ME> ReportServiceImpl<M, N, C, ME>
 where
     M: MetricService,
     N: NotificationService,
     C: ChartService,
+    ME: MonEsService,
 {
+    #[doc = ""]
+    async fn report_cluster_issues(
+        &self,
+        report_type: &ReportType,
+        cluster_name: &str,
+    ) -> anyhow::Result<()> {
+        let time_range: ReportRange = report_type.range();
+
+        let calendar_interval: &str = match report_type {
+            ReportType::Day => "minute",
+            ReportType::Week => "hour",
+            ReportType::Month => "day",
+            ReportType::Year => "week",
+        };
+
+        let start_at: DateTime<Utc> = time_range.from;
+        let end_at: DateTime<Utc> = time_range.to;
+        
+        /* Node connection failure */
+        let (con_err_cnt, con_err_agg_img_path) = self
+            .process_error_type(
+                ImgFileType::NodeConnErr,
+                "Node connection failure",
+                cluster_name,
+                report_type,
+                start_at,
+                end_at,
+                calendar_interval,
+            )
+            .await
+            .map_err(|e| {
+                anyhow!(
+                    "[ReportServiceImpl::report_cluster_issues] node connection fail: {:?}",
+                    e
+                )
+            })?;
+
+        /* Cluster status is unstable */
+        let (unstable_cnt, unstable_agg_img_path) = self
+            .process_error_type(
+                ImgFileType::ClusterStatusErr,
+                "Cluster status is unstable",
+                cluster_name,
+                report_type,
+                start_at,
+                end_at,
+                calendar_interval,
+            )
+            .await
+            .map_err(|e| {
+                anyhow!(
+                    "[ReportServiceImpl::report_cluster_issues] cluster status unstable: {:?}",
+                    e
+                )
+            })?;
+
+        /* Emergency indicator alarm dispatch */
+        let (emergency_cnt, emergency_agg_img_path) = self
+            .process_error_type(
+                ImgFileType::EmgIndiErr,
+                "Emergency indicator alarm dispatch",
+                cluster_name,
+                report_type,
+                start_at,
+                end_at,
+                calendar_interval,
+            )
+            .await
+            .map_err(|e| {
+                anyhow!(
+                    "[ReportServiceImpl::report_cluster_issues] emergency indicators: {:?}",
+                    e
+                )
+            })?;
+
+        let local_start_at: DateTime<Local> = start_at.with_timezone(&Local);
+        let local_end_at: DateTime<Local> = end_at.with_timezone(&Local);
+
+        let html_content: String = self
+            .generate_report_html(
+                report_type,
+                local_start_at,
+                local_end_at,
+                con_err_cnt,
+                unstable_cnt,
+                emergency_cnt,
+                &con_err_agg_img_path,
+                &unstable_agg_img_path,
+                &emergency_agg_img_path,
+            )
+            .await?;
+
+        /* Send the report via email. */
+        let email_subject: String = format!(
+            "[Elasticsearch] {} error Report - {}",
+            report_type.get_name(),
+            cluster_name
+        );
+
+        self.notification_service
+            .send_alert_infos_to_admin(&email_subject, &html_content)
+            .await?;
+        
+        delete_files_if_exists(vec![
+            con_err_agg_img_path,
+            unstable_agg_img_path,
+            emergency_agg_img_path,
+        ])?;
+
+        Ok(())
+    }
+
     #[doc = "Process error data for a specific error type: count, aggregate, and generate graph"]
-    /// # Arguments
-    /// * `err_title` - Error title to query
-    /// * `cluster_name` - Cluster name
-    /// * `report_type` - Report type
-    /// * `start_at` - Start time
-    /// * `end_at` - End time
-    /// * `calendar_interval` - Aggregation interval
-    ///
     /// # Returns
     /// * `Ok((u64, PathBuf))` - Error count and generated image path
     async fn process_error_type(
         &self,
+        img_file_type: ImgFileType,
         err_title: &str,
         cluster_name: &str,
         report_type: &ReportType,
@@ -55,17 +164,21 @@ where
         end_at: DateTime<Utc>,
         calendar_interval: &str,
     ) -> anyhow::Result<(u64, PathBuf)> {
+        
         let err_cnt: u64 = self
-            .get_cluster_err_datas_cnt_from_es(err_title, start_at, end_at)
-            .await?;
+            .mon_es_service
+            .get_cluster_err_datas_cnt_from_es(cluster_name, err_title, start_at, end_at)
+            .await
+            .map_err(|e| anyhow!("[ReportServiceImpl::process_error_type][err_cnt] {:?}", e))?;
 
-        // empty data...possible??? -> 빈 데이터가 못오게 하면 될거같은데...?!
         let agg_list: Vec<ErrorAggHistoryBucket> = self
-            .get_agg_err_datas_from_es(err_title, start_at, end_at, calendar_interval)
+            .mon_es_service
+            .get_agg_err_datas_from_es(cluster_name, err_title, start_at, end_at, calendar_interval)
             .await?;
 
         let img_path: PathBuf = self
             .generate_err_history_graph(
+                img_file_type,
                 cluster_name,
                 report_type,
                 &agg_list,
@@ -84,295 +197,7 @@ where
         Ok((err_cnt, img_path))
     }
 
-    #[doc = ""]
-    async fn report_cluster_issues(
-        &self,
-        report_type: &ReportType,
-        cluster_name: &str,
-    ) -> anyhow::Result<()> {
-        let time_range: ReportRange = report_type.range();
-
-        let calendar_interval: &str = match report_type {
-            ReportType::Day => "minute",
-            ReportType::Week => "hour",
-            ReportType::Month => "day",
-            ReportType::Year => "week",
-        };
-
-        let start_at: DateTime<Utc> = time_range.from;
-        let end_at: DateTime<Utc> = time_range.to;
-
-        /* Node connection failure */
-        let (con_err_cnt, con_err_agg_img_path) = self
-            .process_error_type(
-                "Node connection failure",
-                cluster_name,
-                report_type,
-                start_at,
-                end_at,
-                calendar_interval,
-            )
-            .await
-            .map_err(|e| {
-                anyhow!(
-                    "[ReportServiceImpl -> report_cluster_issues -> node connection fail] {:?}",
-                    e
-                )
-            })?;
-
-        /* Cluster status is unstable */
-        let (unstable_cnt, unstable_agg_img_path) = self
-            .process_error_type(
-                "Cluster status is unstable",
-                cluster_name,
-                report_type,
-                start_at,
-                end_at,
-                calendar_interval,
-            )
-            .await
-            .map_err(|e| {
-                anyhow!(
-                    "[ReportServiceImpl -> report_cluster_issues -> cluster status unstable] {:?}",
-                    e
-                )
-            })?;
-
-        /* Emergency indicator alarm dispatch */
-        let (emergency_cnt, emergency_agg_img_path) = self
-            .process_error_type(
-                "Emergency indicator alarm dispatch",
-                cluster_name,
-                report_type,
-                start_at,
-                end_at,
-                calendar_interval,
-            )
-            .await
-            .map_err(|e| {
-                anyhow!(
-                    "[ReportServiceImpl -> report_cluster_issues -> emergency indicators] {:?}",
-                    e
-                )
-            })?;
-
-        let local_start_at: DateTime<Local> = start_at.with_timezone(&Local);
-        let local_end_at: DateTime<Local> = end_at.with_timezone(&Local);
-        
-        let html_content: String = self
-            .generate_report_html(
-                report_type,
-                local_start_at,
-                local_end_at,
-                con_err_cnt,
-                unstable_cnt,
-                emergency_cnt,
-                &con_err_agg_img_path,
-                &unstable_agg_img_path,
-                &emergency_agg_img_path,
-            )
-            .await?;
-
-        /* Send the report via email. */
-        let email_subject: String = format!("[Elasticsearch] {} error Report - {}", report_type.get_name(), cluster_name);
-        self.notification_service
-            .send_alert_infos_to_admin(&email_subject, &html_content)
-            .await?;
-        
-        delete_files_if_exists(vec![
-            con_err_agg_img_path,
-            unstable_agg_img_path,
-            emergency_agg_img_path,
-        ])?;
-
-        Ok(())
-    }
-
-    #[doc = "Function that returns error log information related to node failures in Elasticsearch"]
-    async fn get_cluster_err_datas_cnt_from_es(
-        &self,
-        err_title: &str,
-        start_at: DateTime<Utc>,
-        end_at: DateTime<Utc>,
-    ) -> anyhow::Result<u64> {
-        let cluster_name: String = self.metric_service.get_cluster_name();
-        let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
-
-        let err_index_name: String = format!(
-            "{}*",
-            mon_es.get_cluster_index_error_pattern()
-                .ok_or_else(|| anyhow!("[ReportServiceImpl->get_cluster_err_datas]`Error log index pattern` is not configured"))?
-        );
-
-        let search_query: Value = json!({
-            "query": {
-                "bool": {
-                    "filter": [
-                        {
-                            "range": {
-                                "timestamp": {
-                                    "gte": convert_date_to_str_full(start_at, Utc),
-                                    "lte": convert_date_to_str_full(end_at, Utc)
-                                }
-                            }
-                        },
-                        {
-                            "term": {
-                                "err_title.keyword": err_title
-                            }
-                        },
-                        {
-                            "term": {
-                                "cluster_name.keyword": cluster_name
-                            }
-                        }
-                    ]
-                }
-            }
-        });
-
-        /* Get total count of error logs */
-        let err_count: u64 = mon_es
-            .get_count_query(&search_query, &err_index_name)
-            .await
-            .context("[ReportServiceImpl->get_cluster_err_datas] Failed to get error count")?;
-
-        Ok(err_count)
-    }
-
-    // #[doc = "Calculate the number of error periods where consecutive errors are more than 60 seconds apart"]
-    // /// # Arguments
-    // /// * `err_log_infos` - Slice of error log information sorted by timestamp
-    // ///
-    // /// # Returns
-    // /// * `Ok(i32)` - Number of error periods (gaps > 60 seconds between consecutive errors)
-    // /// * `Err` - If timestamp parsing fails
-    // fn calculate_error_term(err_log_infos: &[ErrorLogInfo]) -> anyhow::Result<i32> {
-    //     if err_log_infos.is_empty() {
-    //         return Ok(0);
-    //     }
-
-    //     let mut err_alarm_cnt: i32 = 0;
-    //     let mut prev_time: Option<DateTime<Utc>> = None;
-
-    //     for err_log in err_log_infos {
-    //         let err_time: DateTime<Utc> = convert_str_to_datetime(err_log.timestamp(), Utc)?;
-
-    //         if let Some(prev) = prev_time {
-    //             let time_diff: chrono::TimeDelta = err_time - prev;
-
-    //             // If gap between errors is more than 60 seconds, it's a new error period
-    //             if time_diff.num_seconds() > 60 {
-    //                 err_alarm_cnt += 1;
-    //             }
-    //         }
-
-    //         prev_time = Some(err_time);
-    //     }
-
-    //     Ok(err_alarm_cnt)
-    // }
-
-    #[doc = "Retrieve aggregated error log data from Elasticsearch using date histogram aggregation"]
-    /// # Arguments
-    /// * `start_at` - Start time of the query range (UTC)
-    /// * `end_at` - End time of the query range (UTC)
-    /// * `calendar_interval` - Aggregation interval ("minute", "hour", "day", "week", "month")
-    ///
-    /// # Returns
-    /// * `Ok(Vec<ErrorAggHistoryBucket>)` - List of aggregated error buckets with timestamps converted to Local time
-    /// * `Err` - If query fails or data conversion fails
-    async fn get_agg_err_datas_from_es(
-        &self,
-        err_title: &str,
-        start_at: DateTime<Utc>,
-        end_at: DateTime<Utc>,
-        calendar_interval: &str,
-    ) -> anyhow::Result<Vec<ErrorAggHistoryBucket>> {
-        let cluster_name: String = self.metric_service.get_cluster_name();
-        let mon_es: ElasticConnGuard = get_elastic_guard_conn().await?;
-
-        let err_index_name: String = format!(
-            "{}*",
-            mon_es.get_cluster_index_error_pattern()
-                .ok_or_else(|| anyhow!("[ReportServiceImpl->get_agg_err_datas_from_es]`Error log index pattern` is not configured"))?
-        );
-        
-        let search_query: Value = json!({
-            "query": {
-                "bool": {
-                    "filter": [
-                        {
-                            "range": {
-                                "timestamp": {
-                                    "gte": convert_date_to_str_full(start_at, Utc),
-                                    "lte": convert_date_to_str_full(end_at, Utc)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          }
-                            }  
-                        },
-                        {
-                            "term": {
-                                "cluster_name.keyword": cluster_name
-                            }
-                        },
-                        {
-                            "term": {
-                                "err_title.keyword": err_title
-                            }
-                        }
-                    ]
-                }
-            },
-            "aggs": {
-                "logs_per_time": {
-                    "date_histogram": {
-                        "field": "timestamp",
-                        "calendar_interval": calendar_interval,
-                        "min_doc_count": 0,
-                        "extended_bounds": {
-                            "min": convert_date_to_str_full(start_at, Utc),
-                            "max": convert_date_to_str_full(end_at, Utc)
-                        }
-                    }
-                }
-            },
-            "size": 0
-        });
-
-        let agg_response: Option<ErrorLogsAggregation> = mon_es
-            .get_agg_query::<ErrorLogsAggregation>(&search_query, &err_index_name)
-            .await
-            .context("[ReportServiceImpl->get_agg_err_datas_from_es] The `response body` could not be retrieved.")?;
-
-        match agg_response {
-            Some(agg_response) => {
-                /* It also converts UTC time to local time */
-                let agg_convert_result: Vec<ErrorAggHistoryBucket> =
-                    convert_from_histogram_bucket(&agg_response.logs_per_time.buckets)?;
-                Ok(agg_convert_result)
-            },
-            None => {
-                // Zero Data...
-                
-                
-                let agg_convert_result: Vec<ErrorAggHistoryBucket> = Vec::new();
-                Ok(agg_convert_result)
-            }
-        }
-
-
-        /* It also converts UTC time to local time */
-        // let agg_convert_result: Vec<ErrorAggHistoryBucket> =
-        //     convert_from_histogram_bucket(&agg_response.logs_per_time.buckets)?;
-        //Ok(agg_convert_result)
-    }
-
     #[doc = "Generate a line chart visualization of error log history over time"]
-    /// # Arguments
-    /// * `report_type` - Type of report (Day, Week, Month, Year) - determines output path
-    /// * `err_agg_hist_list` - Aggregated error history data with timestamps and counts
-    /// * `start_at` - Start time of the data range (UTC)
-    /// * `end_at` - End time of the data range (UTC)
-    ///
     /// # Returns
     /// * `Ok(PathBuf)` - Path to the generated chart image file
     /// * `Err` - If chart generation fails
@@ -383,6 +208,7 @@ where
     /// - X-axis shows timestamps, Y-axis shows error counts
     async fn generate_err_history_graph(
         &self,
+        img_file_type: ImgFileType,
         cluster_name: &str,
         report_type: &ReportType,
         err_agg_hist_list: &[ErrorAggHistoryBucket],
@@ -407,8 +233,8 @@ where
         };
 
         let output_path: PathBuf = PathBuf::from(format!(
-            "{}img_{}_{}_{}.png",
-            &report_img_path_str, cluster_name, cur_local_time_str, random_6_digit
+            "{}img_{}_{}_{}_{}.png",
+            &report_img_path_str, cluster_name, cur_local_time_str, img_file_type.get_name(), random_6_digit
         ));
 
         let x_axis: Vec<String> = err_agg_hist_list
@@ -532,11 +358,12 @@ where
 }
 
 #[async_trait]
-impl<M, N, C> ReportService for ReportServiceImpl<M, N, C>
+impl<M, N, C, ME> ReportService for ReportServiceImpl<M, N, C, ME>
 where
     M: MetricService + Sync + Send,
     N: NotificationService + Sync + Send,
     C: ChartService + Sync + Send,
+    ME: MonEsService + Sync + Send,
 {
     #[doc = "Function that provides a report service"]
     async fn report_loop(&self, report_type: ReportType, cluster_name: &str) -> anyhow::Result<()> {

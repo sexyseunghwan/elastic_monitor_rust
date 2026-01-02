@@ -37,7 +37,7 @@ History     : 2024-10-02 Seunghwan Shin       # [v.1.0.0] first create
                                                 1) 리눅스 호환가능하도록 변경
                                                 2) 개발계에서 문제가 생길경우에는 단독 메일만 보내도록 처리
               2025-09-11 Seunghwan Shin       # [v.2.2.0] 모니터링 전용 ES 에 메트릭 수집하는 방식으로 코드 변경
-              2025-12-29 Seunghwan Shin       # [v.3.0.0] Added the monitoring report feature
+              2026-01-02 Seunghwan Shin       # [v.3.0.0] Added the monitoring report feature
 */
 mod common;
 use common::*;
@@ -50,8 +50,8 @@ use utils_modules::logger_utils::*;
 
 mod service;
 use service::{
-    chart_service::*, metrics_service::*, monitoring_service::*, notification_service::*,
-    report_service::*,
+    chart_service::*, metrics_service::*, mon_es_service::*, monitoring_service::*,
+    notification_service::*, report_service::*,
 };
 
 mod model;
@@ -87,6 +87,17 @@ async fn main() {
         )
     });
 
+    let mon_es_infos: EsRepositoryImpl = initialize_mon_db_client().unwrap_or_else(|e| {
+        error!(
+            "[main()] Unable to retrieve 'Elasticsearch' connection information.: {:?}",
+            e
+        );
+        panic!(
+            "[main()] Unable to retrieve 'Elasticsearch' connection information.: {:?}",
+            e
+        )
+    });
+    
     /*
         Shared services (stateless or immutable config)
         These services can be safely shared across all clusters
@@ -94,7 +105,9 @@ async fn main() {
     let chart_service: Arc<ChartServiceImpl> = Arc::new(ChartServiceImpl::new());
     let notification_service: Arc<NotificationServiceImpl> =
         Arc::new(NotificationServiceImpl::new());
-
+    let mon_es_service: Arc<MonEsServiceImpl<EsRepositoryImpl>> =
+        Arc::new(MonEsServiceImpl::new(Arc::new(mon_es_infos)));
+    
     /*
         Handler Dependency Injection(DI)
         Since multiple clusters can be monitored simultaneously,
@@ -102,13 +115,18 @@ async fn main() {
     */
     for cluster in es_infos_vec {
         let metric_service: Arc<MetricServiceImpl<EsRepositoryImpl>> =
-            Arc::new(MetricServiceImpl::new(cluster));
+            Arc::new(MetricServiceImpl::new(Arc::new(RwLock::new(cluster))));
 
         let monitoring_service: Arc<
-            MonitoringServiceImpl<MetricServiceImpl<EsRepositoryImpl>, NotificationServiceImpl>,
+            MonitoringServiceImpl<
+                MetricServiceImpl<EsRepositoryImpl>,
+                NotificationServiceImpl,
+                MonEsServiceImpl<EsRepositoryImpl>,
+            >,
         > = Arc::new(MonitoringServiceImpl::new(
             Arc::clone(&metric_service),
             Arc::clone(&notification_service),
+            Arc::clone(&mon_es_service),
         ));
 
         let report_service: Arc<
@@ -116,19 +134,26 @@ async fn main() {
                 MetricServiceImpl<EsRepositoryImpl>,
                 NotificationServiceImpl,
                 ChartServiceImpl,
+                MonEsServiceImpl<EsRepositoryImpl>,
             >,
         > = Arc::new(ReportServiceImpl::new(
             Arc::clone(&metric_service),
             Arc::clone(&notification_service),
             Arc::clone(&chart_service),
+            Arc::clone(&mon_es_service),
         ));
 
         let controller: MainController<
-            MonitoringServiceImpl<MetricServiceImpl<EsRepositoryImpl>, NotificationServiceImpl>,
+            MonitoringServiceImpl<
+                MetricServiceImpl<EsRepositoryImpl>,
+                NotificationServiceImpl,
+                MonEsServiceImpl<EsRepositoryImpl>,
+            >,
             ReportServiceImpl<
                 MetricServiceImpl<EsRepositoryImpl>,
                 NotificationServiceImpl,
                 ChartServiceImpl,
+                MonEsServiceImpl<EsRepositoryImpl>,
             >,
         > = MainController::new(monitoring_service, report_service);
 

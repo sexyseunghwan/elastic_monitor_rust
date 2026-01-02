@@ -15,21 +15,20 @@ pub trait EsRepository {
         es_query: &Value,
         index_name: &str,
     ) -> Result<Vec<T>, anyhow::Error>;
-    async fn get_agg_query<T>(
-        &self,
-        es_query: &Value,
-        index_name: &str,
-    ) -> anyhow::Result<Option<T>>
-    where T: for<'de> Deserialize<'de> + Send + 'static + std::default::Default;
+    async fn get_agg_query<T>(&self, es_query: &Value, index_name: &str) -> anyhow::Result<T>
+    where
+        T: for<'de> Deserialize<'de> + Send + 'static;
     async fn get_count_query(
         &self,
         es_query: &Value,
         index_name: &str,
     ) -> Result<u64, anyhow::Error>;
+    async fn check_index_has_data(&self, index_name: &str) -> Result<bool, anyhow::Error>;
     fn get_cluster_name(&self) -> String;
     fn get_cluster_all_host_infos(&self) -> Vec<String>;
     fn get_cluster_index_pattern(&self) -> Option<String>;
     fn get_cluster_index_monitoring_pattern(&self) -> Option<String>;
     fn get_cluster_index_urgent_pattern(&self) -> Option<String>;
     fn get_cluster_index_error_pattern(&self) -> Option<String>;
+    fn change_es_conn_pool(&mut self, disable_node_list: Vec<String>) -> anyhow::Result<()>;
 }

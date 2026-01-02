@@ -1,9 +1,8 @@
 pub use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::Display,
     future::Future,
     io::Write,
-    ops::Deref,
     path::{Path, PathBuf},
     result::Result,
     str::{FromStr, Lines},
@@ -12,7 +11,7 @@ pub use std::{
 };
 
 pub use tokio::{
-    sync::{OwnedSemaphorePermit, Semaphore},
+    sync::RwLock,
     time::{sleep, sleep_until, Duration, Instant},
 };
 
@@ -28,7 +27,10 @@ pub use dotenv::dotenv;
 
 pub use reqwest::Client;
 
-pub use futures::{StreamExt, TryStreamExt};
+pub use futures::{
+    stream::{FuturesUnordered, StreamExt as FstreamExt},
+    StreamExt, TryStreamExt,
+};
 
 pub use elasticsearch::{
     auth::Credentials as EsCredentials,
@@ -49,7 +51,7 @@ pub use rand::{prelude::IndexedRandom, prelude::ThreadRng, Rng};
 pub use anyhow::{anyhow, Context};
 
 pub use derive_new::new;
-pub use getset::Getters;
+pub use getset::{Getters, Setters};
 
 pub use futures::future::join_all;
 
@@ -69,7 +71,6 @@ pub use derive_builder::Builder;
 
 pub use deadpool_tiberius::{Manager, Pool};
 
-pub use urlencoding;
 
 pub use plotters::{
     backend::BitMapBackend,

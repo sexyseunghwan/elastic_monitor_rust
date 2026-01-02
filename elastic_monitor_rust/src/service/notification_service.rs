@@ -117,7 +117,7 @@ impl NotificationServiceImpl {
                 ),
             }
         }
-
+        
         Ok(())
     }
 
@@ -278,7 +278,7 @@ impl NotificationService for NotificationServiceImpl {
     ) -> Result<(), anyhow::Error> {
         /* 1. Send Message by the Telegram bot */
         self.send_alarm_to_telegram(msg_fmt).await?;
-        
+
         /* 2. Send Message by the Email */
         let email_format: HtmlContents = msg_fmt.get_email_format();
 

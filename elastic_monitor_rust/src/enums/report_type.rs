@@ -1,6 +1,6 @@
 use crate::common::*;
 
-use crate::enums::report_range::*;
+use crate::model::reports::report_range::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ReportType {
