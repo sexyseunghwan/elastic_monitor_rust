@@ -22,7 +22,7 @@ pub trait MonEsService {
         cluster_name: &str,
         urgent_infos: &[UrgentAlarmInfo],
     ) -> anyhow::Result<()>;
-    async fn post_cluster_nodes_infos(&self, metirc_infos: Vec<MetricInfo>) -> anyhow::Result<()>;
+    async fn post_cluster_nodes_infos(&self, metric_infos: Vec<MetricInfo>) -> anyhow::Result<()>;
     async fn get_alarm_urgent_infos(
         &self,
         host_ips: Vec<String>,

@@ -459,7 +459,7 @@ impl EsRepository for EsRepositoryImpl {
 
     #[doc = "Function to check whether data exists in a specific index."]
     /// # Arguments
-    /// * `index_name` 
+    /// * `index_name`
     ///
     /// # Returns
     /// * Result<bool, anyhow::Error> - 데이터 존재 여부 (true: 데이터 존재, false: 데이터 없음)

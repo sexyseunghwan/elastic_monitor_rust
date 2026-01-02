@@ -1,40 +1,35 @@
-use futures::TryFutureExt;
-
 use crate::common::*;
 
 use crate::utils_modules::{io_utils::*, time_utils::*};
 
 use crate::traits::service::{
-        chart_service_trait::*, metric_service_trait::*, mon_es_service_trait::*,
-        notification_service_trait::*, report_service_trait::*,
-    };
+    chart_service_trait::*, metric_service_trait::*, mon_es_service_trait::*,
+    notification_service_trait::*, report_service_trait::*,
+};
 
-use crate::enums::{report_type::*, img_file_type::*};
+use crate::enums::{img_file_type::*, report_type::*};
 
 use crate::env_configuration::env_config::*;
 
 use crate::model::{
     configs::{config::*, report_config::*},
     reports::err_agg_history_bucket::*,
-    reports::report_range::*
+    reports::report_range::*,
 };
 
 #[derive(Debug, new)]
 pub struct ReportServiceImpl<
-    M: MetricService,
     N: NotificationService,
     C: ChartService,
     ME: MonEsService,
 > {
-    metric_service: Arc<M>,
     notification_service: Arc<N>,
     chart_service: Arc<C>,
     mon_es_service: Arc<ME>,
 }
 
-impl<M, N, C, ME> ReportServiceImpl<M, N, C, ME>
+impl<N, C, ME> ReportServiceImpl<N, C, ME>
 where
-    M: MetricService,
     N: NotificationService,
     C: ChartService,
     ME: MonEsService,
@@ -56,10 +51,11 @@ where
 
         let start_at: DateTime<Utc> = time_range.from;
         let end_at: DateTime<Utc> = time_range.to;
-        
-        /* Node connection failure */
-        let (con_err_cnt, con_err_agg_img_path) = self
-            .process_error_type(
+
+        /* Process all error types in parallel */
+        let (con_err_result, unstable_result, emergency_result) = tokio::join!(
+            /* Node connection failure */
+            self.process_error_type(
                 ImgFileType::NodeConnErr,
                 "Node connection failure",
                 cluster_name,
@@ -67,18 +63,9 @@ where
                 start_at,
                 end_at,
                 calendar_interval,
-            )
-            .await
-            .map_err(|e| {
-                anyhow!(
-                    "[ReportServiceImpl::report_cluster_issues] node connection fail: {:?}",
-                    e
-                )
-            })?;
-
-        /* Cluster status is unstable */
-        let (unstable_cnt, unstable_agg_img_path) = self
-            .process_error_type(
+            ),
+            /* Cluster status is unstable */
+            self.process_error_type(
                 ImgFileType::ClusterStatusErr,
                 "Cluster status is unstable",
                 cluster_name,
@@ -86,18 +73,9 @@ where
                 start_at,
                 end_at,
                 calendar_interval,
-            )
-            .await
-            .map_err(|e| {
-                anyhow!(
-                    "[ReportServiceImpl::report_cluster_issues] cluster status unstable: {:?}",
-                    e
-                )
-            })?;
-
-        /* Emergency indicator alarm dispatch */
-        let (emergency_cnt, emergency_agg_img_path) = self
-            .process_error_type(
+            ),
+            /* Emergency indicator alarm dispatch */
+            self.process_error_type(
                 ImgFileType::EmgIndiErr,
                 "Emergency indicator alarm dispatch",
                 cluster_name,
@@ -106,13 +84,28 @@ where
                 end_at,
                 calendar_interval,
             )
-            .await
-            .map_err(|e| {
-                anyhow!(
-                    "[ReportServiceImpl::report_cluster_issues] emergency indicators: {:?}",
-                    e
-                )
-            })?;
+        );
+
+        let (con_err_cnt, con_err_agg_img_path) = con_err_result.map_err(|e| {
+            anyhow!(
+                "[ReportServiceImpl::report_cluster_issues] node connection fail: {:?}",
+                e
+            )
+        })?;
+
+        let (unstable_cnt, unstable_agg_img_path) = unstable_result.map_err(|e| {
+            anyhow!(
+                "[ReportServiceImpl::report_cluster_issues] cluster status unstable: {:?}",
+                e
+            )
+        })?;
+
+        let (emergency_cnt, emergency_agg_img_path) = emergency_result.map_err(|e| {
+            anyhow!(
+                "[ReportServiceImpl::report_cluster_issues] emergency indicators: {:?}",
+                e
+            )
+        })?;
 
         let local_start_at: DateTime<Local> = start_at.with_timezone(&Local);
         let local_end_at: DateTime<Local> = end_at.with_timezone(&Local);
@@ -141,7 +134,7 @@ where
         self.notification_service
             .send_alert_infos_to_admin(&email_subject, &html_content)
             .await?;
-        
+
         delete_files_if_exists(vec![
             con_err_agg_img_path,
             unstable_agg_img_path,
@@ -164,7 +157,6 @@ where
         end_at: DateTime<Utc>,
         calendar_interval: &str,
     ) -> anyhow::Result<(u64, PathBuf)> {
-        
         let err_cnt: u64 = self
             .mon_es_service
             .get_cluster_err_datas_cnt_from_es(cluster_name, err_title, start_at, end_at)
@@ -234,7 +226,11 @@ where
 
         let output_path: PathBuf = PathBuf::from(format!(
             "{}img_{}_{}_{}_{}.png",
-            &report_img_path_str, cluster_name, cur_local_time_str, img_file_type.get_name(), random_6_digit
+            &report_img_path_str,
+            cluster_name,
+            cur_local_time_str,
+            img_file_type.get_name(),
+            random_6_digit
         ));
 
         let x_axis: Vec<String> = err_agg_hist_list
@@ -358,9 +354,8 @@ where
 }
 
 #[async_trait]
-impl<M, N, C, ME> ReportService for ReportServiceImpl<M, N, C, ME>
+impl<N, C, ME> ReportService for ReportServiceImpl<N, C, ME>
 where
-    M: MetricService + Sync + Send,
     N: NotificationService + Sync + Send,
     C: ChartService + Sync + Send,
     ME: MonEsService + Sync + Send,

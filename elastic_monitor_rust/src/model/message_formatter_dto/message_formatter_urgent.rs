@@ -8,8 +8,8 @@ use crate::env_configuration::env_config::*;
 #[getset(get = "pub")]
 pub struct UrgentAlarmInfo {
     pub host: String,
-    pub metirc_name: String,
-    pub metic_value_str: String,
+    pub metric_name: String,
+    pub metric_value_str: String,
 }
 
 #[derive(Debug, Getters, new)]
@@ -37,8 +37,8 @@ impl MessageFormatter for MessageFormatterUrgent {
             msg_contents.push_str(
                 format!(
                     " {}: {} - {}\n",
-                    urgent_info.metirc_name(),
-                    urgent_info.metic_value_str(),
+                    urgent_info.metric_name(),
+                    urgent_info.metric_value_str(),
                     urgent_info.host()
                 )
                 .as_str(),
@@ -62,8 +62,8 @@ impl MessageFormatter for MessageFormatterUrgent {
                 </tr>
                 ",
                 self.cluster_name,
-                urgent_info.metirc_name(),
-                urgent_info.metirc_name(), urgent_info.metic_value_str(),
+                urgent_info.metric_name(),
+                urgent_info.metric_name(), urgent_info.metric_value_str(),
                 urgent_info.host()
             );
 

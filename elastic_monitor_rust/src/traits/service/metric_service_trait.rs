@@ -1,9 +1,6 @@
 use crate::common::*;
 
-use crate::model::{
-    monitoring::metric_info::*,
-    search_indicies::*,
-};
+use crate::model::{monitoring::metric_info::*, search_indicies::*};
 
 #[async_trait]
 pub trait MetricService {
@@ -30,5 +27,8 @@ pub trait MetricService {
     ) -> Result<(), anyhow::Error>;
     async fn get_cluster_nodes_infos(&self) -> anyhow::Result<Vec<MetricInfo>>;
     async fn extract_host_ips(&self) -> Vec<String>;
-    async fn refresh_es_connection_pool(&self, disable_node_list: Vec<String>) -> anyhow::Result<()>; // -> ?
+    async fn refresh_es_connection_pool(
+        &self,
+        disable_node_list: Vec<String>,
+    ) -> anyhow::Result<()>; // -> ?
 }

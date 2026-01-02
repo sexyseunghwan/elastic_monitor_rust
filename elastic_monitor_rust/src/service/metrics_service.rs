@@ -128,7 +128,7 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
         self.elastic_obj.read().await.get_cluster_all_host_infos()
     }
 
-    #[doc = "Function thath checkts the status of each node within an Elasticsearch cluster"]
+    #[doc = "Function that checks the status of each node within an Elasticsearch cluster"]
     async fn get_cluster_node_check(&self) -> Result<Vec<String>, anyhow::Error> {
         /* Vec<(host 주소, 연결 유무)> */
         let elastic_guard: tokio::sync::RwLockReadGuard<'_, R> = self.elastic_obj.read().await;
@@ -309,9 +309,9 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
                     get_value_by_path(node_info, "indices.translog.operations")?;
                 let translog_operation_size: i64 =
                     get_value_by_path(node_info, "indices.translog.size_in_bytes")?;
-                let translog_uncommited_operation: i64 =
+                let translog_uncommitted_operation: i64 =
                     get_value_by_path(node_info, "indices.translog.uncommitted_operations")?;
-                let translog_uncommited_operation_size: i64 =
+                let translog_uncommitted_operation_size: i64 =
                     get_value_by_path(node_info, "indices.translog.uncommitted_size_in_bytes")?;
 
                 let flush_total: i64 = get_value_by_path(node_info, "indices.flush.total")?;
@@ -366,8 +366,8 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
                     .fetch_latency(fetch_latency)
                     .translog_operation(translog_operation)
                     .translog_operation_size(translog_operation_size)
-                    .translog_uncommited_operation(translog_uncommited_operation)
-                    .translog_uncommited_operation_size(translog_uncommited_operation_size)
+                    .translog_uncommitted_operation(translog_uncommitted_operation)
+                    .translog_uncommitted_operation_size(translog_uncommitted_operation_size)
                     .flush_total(flush_total)
                     .refresh_total(refresh_total)
                     .refresh_listener(refresh_listener)
@@ -383,9 +383,9 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
                     .get_active_thread(0)
                     .get_thread_queue(0)
                     .get_rejected_thread(0)
-                    .menagement_active_thread(0)
-                    .menagement_thread_queue(0)
-                    .menagement_rejected_thread(0)
+                    .management_active_thread(0)
+                    .management_thread_queue(0)
+                    .management_rejected_thread(0)
                     .generic_active_thread(0)
                     .generic_thread_queue(0)
                     .generic_rejected_thread(0)
@@ -413,11 +413,11 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
         &self,
         metric_vec: &mut Vec<MetricInfo>,
     ) -> Result<(), anyhow::Error> {
-        let query_feilds: [&str; 1] = ["ip"];
+        let query_fields: [&str; 1] = ["ip"];
 
         /* GET /_nodes/stats */
         let elastic_guard: tokio::sync::RwLockReadGuard<'_, R> = self.elastic_obj.read().await;
-        let get_cat_shards: String = elastic_guard.get_cat_shards(&query_feilds).await?;
+        let get_cat_shards: String = elastic_guard.get_cat_shards(&query_fields).await?;
 
         let mut host_map: HashMap<String, i64> = HashMap::new();
 
@@ -453,7 +453,7 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
         &self,
         metric_vec: &mut Vec<MetricInfo>,
     ) -> Result<(), anyhow::Error> {
-        let query_feilds: [&str; 6] = ["search", "write", "bulk", "get", "management", "generic"];
+        let query_fields: [&str; 6] = ["search", "write", "bulk", "get", "management", "generic"];
 
         let elastic_guard: tokio::sync::RwLockReadGuard<'_, R> = self.elastic_obj.read().await;
         let get_cat_thread_pool: String = elastic_guard.get_cat_thread_pool().await?;
@@ -463,7 +463,7 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
             .filter_map(|line| {
                 let parts: Vec<&str> = line.split_whitespace().collect();
 
-                if parts.len() >= 5 && query_feilds.contains(&parts[1]) {
+                if parts.len() >= 5 && query_fields.contains(&parts[1]) {
                     Some(ThreadPoolStat::new(
                         parts[0].to_string(),
                         parts[1].to_string(),
@@ -516,9 +516,9 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
                         metric.get_rejected_thread = *stat.rejected();
                     }
                     "management" => {
-                        metric.menagement_active_thread = *stat.active();
-                        metric.menagement_thread_queue = *stat.queue();
-                        metric.menagement_rejected_thread = *stat.rejected();
+                        metric.management_active_thread = *stat.active();
+                        metric.management_thread_queue = *stat.queue();
+                        metric.management_rejected_thread = *stat.rejected();
                     }
                     "generic" => {
                         metric.generic_active_thread = *stat.active();
@@ -573,15 +573,19 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
     #[doc = "Function that modified the Elasticsearch connection pool,
         which is dependent injection,
         when a specific node connection is lost."]
-    async fn refresh_es_connection_pool(&self, disable_node_list: Vec<String>) -> anyhow::Result<()> {
-        let mut elastic_guard: tokio::sync::RwLockWriteGuard<'_, R> = self.elastic_obj.write().await;
-        
+    async fn refresh_es_connection_pool(
+        &self,
+        disable_node_list: Vec<String>,
+    ) -> anyhow::Result<()> {
+        let mut elastic_guard: tokio::sync::RwLockWriteGuard<'_, R> =
+            self.elastic_obj.write().await;
+
         elastic_guard
             .change_es_conn_pool(disable_node_list)
             .map_err(|e| anyhow!("[MetricServiceImpl::refresh_es_connection_pool] {:?}", e))?;
 
         info!("[MetricServiceImpl::refresh_es_connection_pool] Elasticsearch connection pool regeneration complete.");
-        
+
         Ok(())
     }
 }

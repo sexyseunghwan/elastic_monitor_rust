@@ -71,7 +71,6 @@ pub use derive_builder::Builder;
 
 pub use deadpool_tiberius::{Manager, Pool};
 
-
 pub use plotters::{
     backend::BitMapBackend,
     drawing::IntoDrawingArea,

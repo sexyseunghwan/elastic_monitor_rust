@@ -29,9 +29,9 @@ where
     for path in file_paths {
         if path.exists() {
             match delete_file(&path) {
-                Ok(_) => {  
+                Ok(_) => {
                     info!("[io_utiles::delete_files_if_exists] The deletion of the `{:?}` file was successful", path);
-                },
+                }
                 Err(e) => {
                     error!("[io_utiles::delete_files_if_exists] {:?}", e);
                     continue;
@@ -39,6 +39,79 @@ where
             }
         }
     }
+
+    Ok(())
+}
+
+#[doc = "Function that removes all files in a directory."]
+/// # Arguments
+/// * `dir_path` - The directory path to clean up
+///
+/// # Returns
+/// * `Ok(())` - If all files were deleted successfully or directory doesn't exist
+/// * `Err` - If there was an error reading the directory
+pub fn delete_all_files_in_directory(dir_path: &str) -> anyhow::Result<()> {
+    let path: PathBuf = PathBuf::from(dir_path);
+
+    if !path.exists() {
+        info!(
+            "[io_utils::delete_all_files_in_directory] Directory does not exist: {:?}",
+            dir_path
+        );
+        return Ok(());
+    }
+
+    if !path.is_dir() {
+        return Err(anyhow!(
+            "[io_utils::delete_all_files_in_directory] Path is not a directory: {:?}",
+            dir_path
+        ));
+    }
+
+    let entries: fs::ReadDir = fs::read_dir(&path).map_err(|e| {
+        anyhow!(
+            "[io_utils::delete_all_files_in_directory] Failed to read directory: {:?}",
+            e
+        )
+    })?;
+
+    let mut deleted_count: i32 = 0;
+    let mut error_count: i32 = 0;
+
+    for entry in entries {
+        match entry {
+            Ok(entry) => {
+                let entry_path = entry.path();
+                if entry_path.is_file() {
+                    match fs::remove_file(&entry_path) {
+                        Ok(_) => {
+                            deleted_count += 1;
+                            info!(
+                                "[io_utils::delete_all_files_in_directory] Deleted file: {:?}",
+                                entry_path
+                            );
+                        }
+                        Err(e) => {
+                            error_count += 1;
+                            error!("[io_utils::delete_all_files_in_directory] Failed to delete file {:?}: {:?}", entry_path, e);
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                error_count += 1;
+                error!(
+                    "[io_utils::delete_all_files_in_directory] Failed to read entry: {:?}",
+                    e
+                );
+            }
+        }
+    }
+
+    info!(
+        "[io_utils::delete_all_files_in_directory] Cleanup completed. Deleted: {}, Errors: {}",
+        deleted_count, error_count
+    );
 
     Ok(())
 }

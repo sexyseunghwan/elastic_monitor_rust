@@ -33,7 +33,7 @@ where
 
         if !fail_hosts.is_empty() {
             let cluster_name: String = self.metric_service.get_cluster_name().await;
-            
+
             /* Add code that logs errors. */
             self.mon_es_service
                 .put_node_conn_err_infos(&cluster_name, &fail_hosts)
@@ -49,13 +49,13 @@ where
 
             self.notification_service.send_alarm_infos(&msg_fmt).await?;
 
-            /* elasticsearch connection pool rebuild. */ 
+            /* elasticsearch connection pool rebuild. */
             self.metric_service
                 .refresh_es_connection_pool(fail_hosts)
                 .await
                 .map_err(|e| anyhow!("[MonitoringServiceImpl::cluster_nodes_check] {:?}", e))?;
         }
-        
+
         Ok(())
     }
 
@@ -95,7 +95,6 @@ where
     #[doc = "Function that indexes observation metrics into a specific index 
              within an Elasticsearch cluster responsible for monitoring"]
     async fn input_es_metric_infos(&self) -> Result<(), anyhow::Error> {
-        
         let metric_infos: Vec<MetricInfo> = self
             .metric_service
             .get_cluster_nodes_infos()
@@ -163,9 +162,7 @@ where
 {
     #[doc = "Function that monitors the Elasticsearch cluster status."]
     async fn monitoring_loop(&self) -> anyhow::Result<()> {
-        
         loop {
-            
             if let Err(e) = self.cluster_nodes_check().await {
                 error!(
                     "[MonitoringServiceImpl::monitoring_loop] cluster_nodes_check() error: {:?}",
@@ -190,14 +187,13 @@ where
                     e
                 );
             }
-            
+
             if let Err(e) = self.send_alarm_urgent_infos().await {
                 error!("[MonitoringServiceImpl->monitoring_loop] send_alarm_urgent_infos() error: {:?}", e);
             }
 
             std_sleep(Duration::from_secs(10));
         }
-
     }
 
     async fn get_cluster_name(&self) -> String {

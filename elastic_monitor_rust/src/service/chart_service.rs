@@ -78,6 +78,7 @@ impl ChartService for ChartServiceImpl {
                 let root: plotters::prelude::DrawingArea<
                     BitMapBackend<'_>,
                     plotters::coord::Shift,
+                    //> = BitMapBackend::new(&output_path_str, (800, 600)).into_drawing_area();
                 > = BitMapBackend::new(&output_path_str, (1400, 700)).into_drawing_area();
                 root.fill(&RGBColor(20, 20, 20))?;
 

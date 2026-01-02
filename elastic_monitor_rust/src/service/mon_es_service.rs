@@ -1,10 +1,6 @@
 use crate::common::*;
 
-
-use crate::traits::{
-    repository::es_repository_trait::*,
-    service::mon_es_service_trait::*,
-};
+use crate::traits::{repository::es_repository_trait::*, service::mon_es_service_trait::*};
 
 use crate::model::elastic_dto::dummy_data::*;
 use crate::model::elastic_dto::elastic_source_parser::*;
@@ -235,8 +231,8 @@ where
                     "Emergency indicator alarm dispatch".into(),
                     format!(
                         "{} metric has exceeded the threshold\nMetric value:{}",
-                        urgent_index.metirc_name(),
-                        urgent_index.metic_value_str()
+                        urgent_index.metric_name(),
+                        urgent_index.metric_value_str()
                     ),
                 );
 
@@ -254,7 +250,7 @@ where
     }
 
     #[doc = "Function for loading information from each cluster node into Monitoring Elasticsearch"]
-    async fn post_cluster_nodes_infos(&self, metirc_infos: Vec<MetricInfo>) -> anyhow::Result<()> {
+    async fn post_cluster_nodes_infos(&self, metric_infos: Vec<MetricInfo>) -> anyhow::Result<()> {
         /* metric_info_log_ ... */
         let cluster_index_pattern: String = self
             .elastic_obj
@@ -268,7 +264,7 @@ where
         let now: DateTime<Utc> = Utc::now();
         let index_name: String = self.get_today_index_name(&cluster_index_pattern, now);
 
-        for metric in metirc_infos.into_iter() {
+        for metric in metric_infos.into_iter() {
             let document: Value = serde_json::to_value(metric)?;
 
             if let Err(e) = self.elastic_obj.post_doc(&index_name, document).await {
@@ -413,7 +409,7 @@ where
             .ok_or_else(|| anyhow!("[MonEsServiceImpl::get_agg_err_datas_from_es]`Error log index pattern` is not configured"))?;
 
         let err_index_name: String = format!("{}*", err_index);
-        
+
         let has_data: bool = self.elastic_obj
             .check_index_has_data(&err_index_name)
             .await
@@ -432,7 +428,7 @@ where
                     e
                 )
             })?;
-            
+
             match self
                 .elastic_obj
                 .post_doc(&dummy_index_name, dummy_json)
@@ -440,7 +436,7 @@ where
             {
                 Ok(_) => {
                     info!("[MonEsServiceImpl::get_agg_err_datas_from_es] Dummy data generation complete.: {}", dummy_index_name);
-                },
+                }
                 Err(e) => {
                     error!("[MonEsServiceImpl::get_agg_err_datas_from_es] Failed post the `dummy_index` data.: {:?}", e);
                     return Ok(Vec::new());

@@ -20,8 +20,8 @@ History     : 2024-10-02 Seunghwan Shin       # [v.1.0.0] first create
                                                 2) Telebot service -> repository 로 바꿈.
                                                 3) Tele bot -> Message too long 에러 해결
               2025-02-12 Seunghwan Shin       # [v.1.8.0]
-                                                1) 하드코딩 되어있는 경로들을 모둔 .env 파일로 빼서 컴파일 없이도 수정될 수 있도록 코드 변경
-                                                2) reqwest::client 를 전역적으로 사용하도록 코두 수정
+                                                1) 하드코딩 되어있는 경로들을 모든 .env 파일로 빼서 컴파일 없이도 수정될 수 있도록 코드 변경
+                                                2) reqwest::client 를 전역적으로 사용하도록 코드 수정
               2025-04-16 Seunghwan Shin       # [v.1.9.0] 색인서버 모니터링 로직 추가
               2025-05-28 Seunghwan Shin       # [v.1.10.0]
                                                 1) 나눗셈 버그 수정
@@ -97,7 +97,7 @@ async fn main() {
             e
         )
     });
-    
+
     /*
         Shared services (stateless or immutable config)
         These services can be safely shared across all clusters
@@ -107,7 +107,7 @@ async fn main() {
         Arc::new(NotificationServiceImpl::new());
     let mon_es_service: Arc<MonEsServiceImpl<EsRepositoryImpl>> =
         Arc::new(MonEsServiceImpl::new(Arc::new(mon_es_infos)));
-    
+
     /*
         Handler Dependency Injection(DI)
         Since multiple clusters can be monitored simultaneously,
@@ -131,13 +131,11 @@ async fn main() {
 
         let report_service: Arc<
             ReportServiceImpl<
-                MetricServiceImpl<EsRepositoryImpl>,
                 NotificationServiceImpl,
                 ChartServiceImpl,
                 MonEsServiceImpl<EsRepositoryImpl>,
             >,
         > = Arc::new(ReportServiceImpl::new(
-            Arc::clone(&metric_service),
             Arc::clone(&notification_service),
             Arc::clone(&chart_service),
             Arc::clone(&mon_es_service),
@@ -150,7 +148,6 @@ async fn main() {
                 MonEsServiceImpl<EsRepositoryImpl>,
             >,
             ReportServiceImpl<
-                MetricServiceImpl<EsRepositoryImpl>,
                 NotificationServiceImpl,
                 ChartServiceImpl,
                 MonEsServiceImpl<EsRepositoryImpl>,

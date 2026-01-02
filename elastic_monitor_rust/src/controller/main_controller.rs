@@ -6,6 +6,8 @@ use crate::model::configs::config::*;
 
 use crate::enums::report_type::*;
 
+use crate::utils_modules::io_utils::*;
+
 #[derive(Debug, new)]
 pub struct MainController<M: MonitoringService, R: ReportService> {
     monitoring_service: Arc<M>,
@@ -112,6 +114,26 @@ where
     {
         let task_name: String = task_name.to_string();
         let cluster_name_cloned: String = cluster_name.to_string();
+
+        let img_path: &str = match report_type {
+            ReportType::Day => get_daily_report_config_info().img_path().as_str(),
+            ReportType::Week => get_weekly_report_config_info().img_path().as_str(),
+            ReportType::Month => get_monthly_report_config_info().img_path().as_str(),
+            ReportType::Year => get_yearly_report_config_info().img_path().as_str(),
+        };
+        
+        /* It deletes all image files related to the report. */
+        match delete_all_files_in_directory(img_path) {
+            Ok(_) => {
+                info!(
+                    "The images within the `{}` directory have been deleted.",
+                    img_path
+                );
+            }
+            Err(e) => {
+                error!("[MainController::spawn_report_task] Failed to delete contents within the `{}` directory.: {:?}", img_path, e);
+            }
+        }
 
         if !enabled {
             return tokio::spawn(async move {

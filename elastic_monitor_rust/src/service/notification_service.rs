@@ -117,7 +117,7 @@ impl NotificationServiceImpl {
                 ),
             }
         }
-        
+
         Ok(())
     }
 

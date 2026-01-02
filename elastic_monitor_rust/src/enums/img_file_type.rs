@@ -1,7 +1,7 @@
 pub enum ImgFileType {
     NodeConnErr,
     ClusterStatusErr,
-    EmgIndiErr
+    EmgIndiErr,
 }
 
 impl ImgFileType {
