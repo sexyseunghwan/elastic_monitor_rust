@@ -329,12 +329,12 @@ impl<R: EsRepository + Sync + Send + std::fmt::Debug> MetricService for MetricSe
                     self.get_breaker_info(node_info, "fielddata")?;
 
                 /* 8.x 버전 */
-                let breaker_inflight_requests: BreakerInfo =
-                    self.get_breaker_info(node_info, "inflight_requests")?;
+                // let breaker_inflight_requests: BreakerInfo =
+                //     self.get_breaker_info(node_info, "inflight_requests")?;
 
                 /* 7.x 버전 */
-                // let breaker_inflight_requests: BreakerInfo =
-                //     self.get_breaker_info(node_info, "in_flight_requests")?;
+                let breaker_inflight_requests: BreakerInfo =
+                    self.get_breaker_info(node_info, "in_flight_requests")?;
 
                 let breaker_parent: BreakerInfo = self.get_breaker_info(node_info, "parent")?;
 
